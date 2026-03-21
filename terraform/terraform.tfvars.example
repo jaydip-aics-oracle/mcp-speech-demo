@@ -1,0 +1,25 @@
+tenancy_ocid       = "<TENANCY_OCID>"
+compartment_id     = "<COMPARTMENT_OCID>"
+region             = "<OCI_REGION>"
+resource_name_prefix                 = "mcp"
+mcp_container_repository_name        = "audio-repo"
+mcp_client_container_repository_name = "client-repo"
+speech_bucket_name                   = "audio-bucket"
+
+# Optional. Terraform auto-detects the tenancy home region for IAM resources.
+# Set this only to override the detected value.
+# home_region = "<OCI_HOME_REGION>"
+
+# Required for the default end-to-end OCI DevOps build/deploy flow.
+# devops_repository_id    = "ocid1.devopsrepository.oc1..<unique_id>"
+# devops_repository_url   = "https://devops.scmservice.<region>.oci.oraclecloud.com/namespaces/<namespace>/projects/<project>/repositories/<repo>"
+# current_user_ocid       = "ocid1.user.oc1..<unique_id>"
+#
+# Optional overrides for the default end-to-end flow.
+# devops_source_branch    = "master"
+# devops_deploy_namespace = "mcp"
+# devops_image_tag        = "latest"
+# ocir_auth_token         = "<existing-auth-token>"  # only if the current user already has 2 auth tokens
+# genai_model_id          = "cohere.command-a-03-2025"
+# genai_provider          = "cohere"
+# genai_service_endpoint  = "https://inference.generativeai.<region>.oci.oraclecloud.com"

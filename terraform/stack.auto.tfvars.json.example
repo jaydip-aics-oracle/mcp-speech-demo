@@ -1,0 +1,14 @@
+{
+  "tenancy_ocid": "ocid1.tenancy.oc1..aaaaaaaa35pxyeeln5c6ocawgddr7owrrpj43gyy7uqd4n4nxzlgskqytcmq",
+  "compartment_id": "ocid1.compartment.oc1..aaaaaaaatm7xmoofceh2rfwuycicnu5clerpm2k6ht6j5bkkgkgtzavwpbzq",
+  "region": "us-chicago-1",
+  "devops_repository_id": "ocid1.devopsrepository.oc1.us-chicago-1.amaaaaaafigrwqyax7aox7bsh2l3dwsowz3zi4mfyknjnbpklahxrj74ayua",
+  "devops_repository_url": "https://devops.scmservice.us-chicago-1.oci.oraclecloud.com/namespaces/ax6ymbvwiimc/projects/hosted-mcp-oke/repositories/selfhosted-mcp-oke",
+  "devops_source_branch": "master",
+  "devops_deploy_namespace": "mcp",
+  "devops_trigger_initial_build": false,
+  "current_user_ocid": "ocid1.user.oc1..aaaaaaaaoyakvpmnttllxkgzehwb4zpccmyazpy6xbl4ljkx4lqyaozri2xq",
+  "ocir_auth_token": "wUbNC(Fc1.4{:97v.:rb",
+  "genai_model_id": "cohere.command-a-03-2025",
+  "genai_provider": "cohere"
+}

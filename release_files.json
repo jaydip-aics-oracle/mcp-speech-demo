@@ -1,0 +1,31 @@
+[
+  {
+    "action": "create_zip",
+    "file_name": "oci-deploy-selfhosted-mcp-oke-latest.zip",
+    "files": [
+      {
+        "src_pattern": "terraform/*.tf",
+        "dst_path": ".",
+        "exclude": [
+          "terraform/provider.tf"
+        ]
+      },
+      {
+        "src_pattern": "terraform/modules/**",
+        "dst_path": "modules"
+      },
+      {
+        "src": "orm/schema.yaml",
+        "dst": "schema.yaml"
+      },
+      {
+        "src": "orm/provider_orm.tf",
+        "dst": "provider.tf"
+      }
+    ]
+  },
+  {
+    "action": "upload_file",
+    "file_name": "oci-deploy-selfhosted-mcp-oke-latest.zip"
+  }
+]

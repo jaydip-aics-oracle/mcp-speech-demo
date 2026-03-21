@@ -1,0 +1,31 @@
+version: 0.1
+component: build
+timeoutInSeconds: 7200
+shell: bash
+
+# These image builds are environment-agnostic.
+# Runtime/user-specific env values are injected later by Terraform into
+# Kubernetes secrets and pod env vars during the deploy stage.
+steps:
+  - type: Command
+    name: BuildServerImage
+    command: |
+      set -euo pipefail
+      echo "Building MCP server image artifact"
+      docker build -t mcp-server-build-output:latest mcp-audio
+
+  - type: Command
+    name: BuildClientImage
+    command: |
+      set -euo pipefail
+      echo "Building MCP client image artifact"
+      docker build -t mcp-client-build-output:latest mcp-client
+
+outputArtifacts:
+  - name: mcp-server-image
+    type: DOCKER_IMAGE
+    location: mcp-server-build-output:latest
+
+  - name: mcp-client-image
+    type: DOCKER_IMAGE
+    location: mcp-client-build-output:latest

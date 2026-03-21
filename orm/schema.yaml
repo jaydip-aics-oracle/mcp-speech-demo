@@ -1,0 +1,204 @@
+title: "Launch MCP Audio + Client on OKE"
+description: "Deploy OKE infrastructure for the MCP server and MCP client."
+informationalText: "Deploy from OCI DevOps source or a packaged ZIP stack."
+schemaVersion: 1.1.0
+version: "1.0"
+locale: "en"
+
+variableGroups:
+  - title: "Hidden"
+    visible: false
+    variables:
+      - tenancy_ocid
+      - current_user_ocid
+  - title: "Core Configuration"
+    variables:
+      - compartment_id
+      - region
+      - home_region
+      - cluster_name
+      - kubernetes_version
+      - resource_name_prefix
+  - title: "Repository and Bucket Naming"
+    variables:
+      - mcp_container_repository_name
+      - mcp_client_container_repository_name
+      - speech_bucket_name
+  - title: "OCI DevOps Automation"
+    variables:
+      - devops_repository_id
+      - devops_repository_url
+      - devops_source_branch
+      - devops_deploy_namespace
+      - devops_image_tag
+      - devops_trigger_initial_build
+      - genai_model_id
+      - genai_provider
+      - genai_service_endpoint
+  - title: "Network"
+    variables:
+      - control_subnet_cidr_block
+      - data_subnet_cidr_block
+      - load_balancer_subnet_cidr_block
+
+variables:
+  compartment_id:
+    title: "Compartment"
+    description: "Compartment where resources will be created."
+    type: "oci:identity:compartment:id"
+    required: true
+  region:
+    title: "Region"
+    description: "OCI region where resources are deployed."
+    type: string
+    required: true
+  home_region:
+    title: "Tenancy Home Region"
+    description: "Optional override for the tenancy home region used by IAM resources. When omitted, Terraform detects it automatically."
+    type: string
+    required: false
+  cluster_name:
+    title: "OKE Cluster Name"
+    description: "Display name for the OKE cluster."
+    type: string
+    required: false
+  kubernetes_version:
+    title: "Kubernetes Version"
+    description: "Kubernetes version for the OKE cluster control plane."
+    type: string
+    required: false
+  resource_name_prefix:
+    title: "Resource Name Prefix"
+    description: "Prefix used to generate repository and bucket names."
+    type: string
+    required: false
+  mcp_container_repository_name:
+    title: "Server Repository Base Name"
+    description: "Optional base name for the MCP server OCIR repository."
+    type: string
+    required: false
+  mcp_client_container_repository_name:
+    title: "Client Repository Base Name"
+    description: "Optional base name for the MCP client OCIR repository."
+    type: string
+    required: false
+  speech_bucket_name:
+    title: "Speech Bucket Base Name"
+    description: "Optional base name for the Speech Object Storage bucket."
+    type: string
+    required: false
+  devops_repository_id:
+    title: "OCI DevOps Repository OCID"
+    description: "OCI DevOps source repository that contains this branch and build spec."
+    type: string
+    required: true
+  devops_repository_url:
+    title: "OCI DevOps Repository URL"
+    description: "Clone URL for the OCI DevOps repository used by the managed build stage."
+    type: string
+    required: true
+  devops_source_branch:
+    title: "Source Branch"
+    description: "Repository branch built by OCI DevOps."
+    type: string
+    default: "master"
+    required: false
+  devops_deploy_namespace:
+    title: "Deploy Namespace"
+    description: "Kubernetes namespace used for OCI DevOps OKE deployment."
+    type: string
+    default: "mcp"
+    required: false
+  devops_image_tag:
+    title: "Image Tag"
+    description: "Container image tag delivered to OCIR and deployed to OKE."
+    type: string
+    default: "latest"
+    required: false
+  devops_trigger_initial_build:
+    title: "Start Initial Build"
+    description: "When enabled, starts the first OCI DevOps build during stack apply. Disabled by default so stack apply can complete before post-provision build actions."
+    type: boolean
+    default: false
+    required: false
+  ocir_auth_token:
+    title: "OCIR Auth Token"
+    description: "Optional fallback token used only if the current user has already reached the auth token quota."
+    type: string
+    required: false
+  genai_model_id:
+    title: "GenAI Model ID"
+    description: "Model ID used by the MCP client deployment."
+    type: string
+    default: "cohere.command-a-03-2025"
+    required: false
+  genai_provider:
+    title: "GenAI Provider"
+    description: "Provider string passed to the OCI Generative AI client."
+    type: string
+    default: "cohere"
+    required: false
+  genai_service_endpoint:
+    title: "GenAI Service Endpoint"
+    description: "Optional regional inference endpoint override."
+    type: string
+    required: false
+  control_subnet_cidr_block:
+    title: "Control Subnet CIDR"
+    type: string
+    required: false
+  data_subnet_cidr_block:
+    title: "Data Subnet CIDR"
+    type: string
+    required: false
+  load_balancer_subnet_cidr_block:
+    title: "Load Balancer Subnet CIDR"
+    type: string
+    required: false
+
+outputs:
+  cluster_id:
+    title: "OKE Cluster OCID"
+    displayText: "OKE Cluster OCID"
+    type: copyableString
+    visible: true
+  mcp_server_repository_path:
+    title: "Server OCIR Path"
+    displayText: "MCP Server OCIR Path"
+    type: copyableString
+    visible: true
+  mcp_client_repository_path:
+    title: "Client OCIR Path"
+    displayText: "MCP Client OCIR Path"
+    type: copyableString
+    visible: true
+  oci_namespace:
+    title: "OCI Namespace"
+    displayText: "Object Storage Namespace"
+    type: copyableString
+    visible: true
+  speech_bucket_name:
+    title: "Speech Bucket Name"
+    displayText: "Speech Bucket Name"
+    type: copyableString
+    visible: true
+  devops_project_id:
+    title: "OCI DevOps Project OCID"
+    displayText: "OCI DevOps Project OCID"
+    type: copyableString
+    visible: true
+  devops_build_pipeline_id:
+    title: "Build Pipeline OCID"
+    displayText: "Build Pipeline OCID"
+    type: copyableString
+    visible: true
+  devops_deploy_pipeline_id:
+    title: "Deploy Pipeline OCID"
+    displayText: "Deploy Pipeline OCID"
+    type: copyableString
+    visible: true
+  devops_initial_build_run_id:
+    title: "Initial Build Run OCID"
+    displayText: "Initial Build Run OCID"
+    type: copyableString
+    visible: true
