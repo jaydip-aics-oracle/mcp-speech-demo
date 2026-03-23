@@ -94,67 +94,16 @@ With those values, Terraform creates:
 
 ### Option 2: Public one-click from GitHub using an Object Storage PAR
 
-Use this when you want GitHub to publish the ORM ZIP and keep a stable **Deploy to Oracle Cloud** button backed by an OCI Object Storage pre-authenticated request (PAR).
+Use this when you want a public one-click launch directly from GitHub to OCI Resource Manager.
 
-Behavior summary:
+[![Deploy to Oracle Cloud](https://oci-resourcemanager-plugin.plugins.oci.oraclecloud.com/latest/deploy-to-oracle-cloud.svg)](https://cloud.oracle.com/resourcemanager/stacks/create?zipUrl=https%3A%2F%2Fobjectstorage.us-chicago-1.oraclecloud.com%2Fp%2FRwI5kCL81FFO7kO3NWo_FLx4U3kGx1SBJ-VDm01UGGB_fn5wlRvmBQ7cC8j6dKI_%2Fn%2Fax6ymbvwiimc%2Fb%2Fresult-artifact-mcp-oke%2Fo%2Fcode-release%252Foci-deploy-mcp-speech-demo-latest.zip)
 
-- GitHub Actions builds `oci-deploy-mcp-speech-demo-latest.zip`
-- the same workflow can upload that ZIP to a fixed Object Storage object key
-- your public button points `zipUrl` at the URL-encoded PAR for that object
-- Resource Manager create/apply then provisions infrastructure and reruns the DevOps build/deploy flow
+What happens:
 
-One-time GitHub setup:
+- GitHub workflow builds `oci-deploy-mcp-speech-demo-latest.zip`
+- workflow uploads the ZIP to Object Storage via PAR-backed path
+- button opens OCI Resource Manager with the ZIP preloaded
 
-- create a bucket and pick a stable object key such as `orm/oci-deploy-mcp-speech-demo-latest.zip`
-- create a long-lived read PAR for that exact object key
-- add these repository variables:
-  `OCI_ORM_STACK_BUCKET`, `OCI_ORM_STACK_NAMESPACE`, `OCI_ORM_STACK_REGION`
-- optional repository variables:
-  `OCI_ORM_STACK_OBJECT_NAME`, `OCI_ORM_STACK_PAR_URL`
-- add these repository secrets:
-  `OCI_CLI_USER_OCID`, `OCI_CLI_TENANCY_OCID`, `OCI_CLI_FINGERPRINT`, `OCI_CLI_PRIVATE_KEY`
-- optional repository secret:
-  `OCI_CLI_PRIVATE_KEY_PASSPHRASE`
-
-Public button format:
-
-```html
-<a href="https://cloud.oracle.com/resourcemanager/stacks/create?zipUrl=https%3A%2F%2Fobjectstorage.us-chicago-1.oraclecloud.com%2Fp%2FRwI5kCL81FFO7kO3NWo_FLx4U3kGx1SBJ-VDm01UGGB_fn5wlRvmBQ7cC8j6dKI_%2Fn%2Fax6ymbvwiimc%2Fb%2Fresult-artifact-mcp-oke%2Fo%2Fcode-release%252Foci-deploy-mcp-speech-demo-latest.zip" target="_blank" rel="noopener noreferrer"><img src="https://oci-resourcemanager-plugin.plugins.oci.oraclecloud.com/latest/deploy-to-oracle-cloud.svg" alt="Deploy to Oracle Cloud"/></a>
-```
-
-For this repo, the GitHub variables should be:
-
-- `OCI_ORM_STACK_BUCKET=result-artifact-mcp-oke`
-- `OCI_ORM_STACK_NAMESPACE=ax6ymbvwiimc`
-- `OCI_ORM_STACK_REGION=us-chicago-1`
-- `OCI_ORM_STACK_OBJECT_NAME=code-release/oci-deploy-mcp-speech-demo-latest.zip`
-- `OCI_ORM_STACK_PAR_URL=https://objectstorage.us-chicago-1.oraclecloud.com/p/RwI5kCL81FFO7kO3NWo_FLx4U3kGx1SBJ-VDm01UGGB_fn5wlRvmBQ7cC8j6dKI_/n/ax6ymbvwiimc/b/result-artifact-mcp-oke/o/`
-
-Publishing flow:
-
-1. Run `.github/workflows/build-orm-stack-zip.yml` manually or publish a GitHub release.
-2. The workflow builds the ORM ZIP, uploads it as a workflow artifact, attaches it to the GitHub release, and, when the OCI variables are configured, uploads the same ZIP to Object Storage.
-3. If `OCI_ORM_STACK_PAR_URL` is configured, the workflow also emits `deploy-to-oracle-cloud-url.txt` as an artifact containing the fully encoded `cloud.oracle.com/resourcemanager/stacks/create?zipUrl=...` URL. A PAR base URL ending in `/o/` is supported; the workflow appends `OCI_ORM_STACK_OBJECT_NAME` automatically.
-4. Use the contents of that generated file as the final button `href`, then keep the same Object Storage object key for future releases.
-
-After the button is live:
-
-1. Click the button from GitHub.
-2. On **Create Stack**, review variables from the ZIP-packaged `schema.yaml` and create the stack.
-3. Run **Plan** and **Apply** from Resource Manager.
-4. Provide the OCI DevOps repository OCID/URL, `current_user_ocid`, and GenAI model/provider variables so the stack can create pipelines and OCIR auth correctly.
-5. Use stack outputs such as `cluster_id`, `mcp_server_repository_path`, `mcp_client_repository_path`, `oci_namespace`, `speech_bucket_name`, `devops_build_pipeline_id`, and `devops_deploy_pipeline_id`.
-
-Notes:
-
-- The ZIP packaging config is in `release_files.json`.
-- Resource Manager ZIP-specific files remain under `orm/`.
-- This flow packages Terraform from `terraform/` and maps `orm/schema.yaml` and `orm/provider_orm.tf` to root `schema.yaml` and `provider.tf` in the ZIP.
-- OCI DevOps build automation uses `build_spec.yaml` from the repository root by default.
-- The PAR must point to a real public `.zip` object and must be anonymously accessible.
-- At the time of the last local check, the PAR-backed URL for `code-release/oci-deploy-mcp-speech-demo-latest.zip` returned `404`, which means the ZIP still needs to be published at least once before the public button works.
-- Keep the same object key behind the PAR. The workflow updates that object on every publish, so the public button stays stable.
-- The DevOps build step builds the two container images only; user-specific env values still come from Terraform and are injected at deploy time into Kubernetes secrets and pod env vars.
 
 ### Local ZIP verification
 
