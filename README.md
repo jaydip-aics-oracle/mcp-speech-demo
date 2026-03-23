@@ -2,6 +2,10 @@
 
 This repository deploys the MCP audio server and MCP client on OCI Kubernetes Engine (OKE), pushes both container images to OCIR, and wires the client to the server MCP endpoint.
 
+## Deploy to OCI
+
+[![Deploy to Oracle Cloud](https://oci-resourcemanager-plugin.plugins.oci.oraclecloud.com/latest/deploy-to-oracle-cloud.svg)](https://cloud.oracle.com/resourcemanager/stacks/create?zipUrl=https%3A%2F%2Fobjectstorage.us-chicago-1.oraclecloud.com%2Fp%2FRwI5kCL81FFO7kO3NWo_FLx4U3kGx1SBJ-VDm01UGGB_fn5wlRvmBQ7cC8j6dKI_%2Fn%2Fax6ymbvwiimc%2Fb%2Fresult-artifact-mcp-oke%2Fo%2Fcode-release%252Foci-deploy-mcp-speech-demo-latest.zip)
+
 ## What’s included
 
 - `terraform/` – OCI infrastructure for networking, OKE, OCIR repositories, bucket, and related resources
@@ -94,15 +98,21 @@ With those values, Terraform creates:
 
 ### Option 2: Public one-click from OCI Resource Manager (Deploy to Oracle Cloud)
 
-Use this when you want a public one-click launch from README into OCI Resource Manager using the Deploy to Oracle Cloud button.
+Use this when you want a public one-click launch from README into OCI Resource Manager.
 
 [![Deploy to Oracle Cloud](https://oci-resourcemanager-plugin.plugins.oci.oraclecloud.com/latest/deploy-to-oracle-cloud.svg)](https://cloud.oracle.com/resourcemanager/stacks/create?zipUrl=https%3A%2F%2Fobjectstorage.us-chicago-1.oraclecloud.com%2Fp%2FRwI5kCL81FFO7kO3NWo_FLx4U3kGx1SBJ-VDm01UGGB_fn5wlRvmBQ7cC8j6dKI_%2Fn%2Fax6ymbvwiimc%2Fb%2Fresult-artifact-mcp-oke%2Fo%2Fcode-release%252Foci-deploy-mcp-speech-demo-latest.zip)
 
-What happens:
+User steps:
 
-- GitHub workflow builds `oci-deploy-mcp-speech-demo-latest.zip`
-- workflow uploads the ZIP to Object Storage via PAR-backed path
-- button opens OCI Resource Manager with the ZIP preloaded
+1. Click **Deploy to Oracle Cloud**.
+2. In OCI Resource Manager, review stack variables and create the stack.
+3. Run **Plan** and then **Apply**.
+
+Expected result:
+
+- infrastructure is created
+- OCI DevOps build/deploy resources are created
+- stack outputs include cluster and pipeline IDs needed for follow-up checks
 
 
 ### Local ZIP verification
