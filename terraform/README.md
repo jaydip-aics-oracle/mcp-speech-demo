@@ -157,7 +157,23 @@ To build the ZIP in GitHub Actions:
 - Run `.github/workflows/build-orm-stack-zip.yml` manually, or
 - Publish a GitHub release to attach the ZIP asset automatically.
 - When the OCI variables are configured, the same workflow uploads the ZIP to Object Storage.
-- When `OCI_ORM_STACK_PAR_URL` is configured, the workflow emits `deploy-to-oracle-cloud-url.txt` with the fully encoded launch URL.
+- When `OCI_ORM_STACK_PAR_URL` is configured, the workflow emits `deploy-to-oracle-cloud-url.txt` with the fully encoded launch URL. A PAR base URL ending in `/o/` is supported; the workflow appends `OCI_ORM_STACK_OBJECT_NAME` automatically.
+
+For this repo, the Object Storage values are:
+
+- `OCI_ORM_STACK_BUCKET=result-artifact-mcp-oke`
+- `OCI_ORM_STACK_NAMESPACE=ax6ymbvwiimc`
+- `OCI_ORM_STACK_REGION=us-chicago-1`
+- `OCI_ORM_STACK_OBJECT_NAME=code-release/oci-deploy-mcp-speech-demo-latest.zip`
+- `OCI_ORM_STACK_PAR_URL=https://objectstorage.us-chicago-1.oraclecloud.com/p/RwI5kCL81FFO7kO3NWo_FLx4U3kGx1SBJ-VDm01UGGB_fn5wlRvmBQ7cC8j6dKI_/n/ax6ymbvwiimc/b/result-artifact-mcp-oke/o/`
+
+The final Deploy to Oracle Cloud URL becomes:
+
+```text
+https://cloud.oracle.com/resourcemanager/stacks/create?zipUrl=https%3A%2F%2Fobjectstorage.us-chicago-1.oraclecloud.com%2Fp%2FRwI5kCL81FFO7kO3NWo_FLx4U3kGx1SBJ-VDm01UGGB_fn5wlRvmBQ7cC8j6dKI_%2Fn%2Fax6ymbvwiimc%2Fb%2Fresult-artifact-mcp-oke%2Fo%2Fcode-release%2Foci-deploy-mcp-speech-demo-latest.zip
+```
+
+At the time of the last local check, that exact ZIP URL still returned `404`, so the GitHub workflow must publish the ZIP once before the public button works.
 
 Manual fallback remains available through the repo Makefile-based flow documented in the root README.
 

@@ -15,8 +15,8 @@ Required environment variables:
   OCI_ORM_STACK_REGION        Object Storage region
 
 Optional environment variables:
-  OCI_ORM_STACK_OBJECT_NAME   Object key to overwrite. Defaults to the ZIP basename.
-  OCI_ORM_STACK_PAR_URL       Long-lived read PAR URL for the same object key.
+  OCI_ORM_STACK_OBJECT_NAME   Object key to overwrite. Defaults to code-release/<zip-name>.
+  OCI_ORM_STACK_PAR_URL       Long-lived read PAR URL for the object, or a PAR base URL ending in /o/.
   LAUNCH_URL_FILE             Output path for the generated Deploy to Oracle Cloud URL.
   SUMMARY_FILE                Output path for the publish summary.
 EOF
@@ -48,7 +48,7 @@ if [[ ! -f "${STACK_ZIP}" ]]; then
   exit 1
 fi
 
-OBJECT_NAME="${OCI_ORM_STACK_OBJECT_NAME:-$(basename "${STACK_ZIP}")}"
+OBJECT_NAME="${OCI_ORM_STACK_OBJECT_NAME:-code-release/$(basename "${STACK_ZIP}")}"
 LAUNCH_URL_FILE="${LAUNCH_URL_FILE:-${ROOT_DIR}/dist/deploy-to-oracle-cloud-url.txt}"
 SUMMARY_FILE="${SUMMARY_FILE:-${ROOT_DIR}/dist/object-storage-publish-summary.txt}"
 
@@ -75,24 +75,43 @@ oci os object put \
 } > "${SUMMARY_FILE}"
 
 if [[ -n "${OCI_ORM_STACK_PAR_URL:-}" ]]; then
-  curl -fsSI "${OCI_ORM_STACK_PAR_URL}" >/dev/null
-  OCI_ORM_STACK_PAR_URL="${OCI_ORM_STACK_PAR_URL}" python3 - <<'PY' > "${LAUNCH_URL_FILE}"
+  mapfile -t par_lines < <(
+    OCI_ORM_STACK_PAR_URL="${OCI_ORM_STACK_PAR_URL}" \
+    OCI_ORM_STACK_OBJECT_NAME="${OBJECT_NAME}" \
+      python3 - <<'PY'
 import os
+import re
 import urllib.parse
 
 par_url = os.environ["OCI_ORM_STACK_PAR_URL"].strip()
-encoded = urllib.parse.quote(par_url, safe="")
-print(f"https://cloud.oracle.com/resourcemanager/stacks/create?zipUrl={encoded}")
+object_name = os.environ["OCI_ORM_STACK_OBJECT_NAME"].strip()
+
+if re.search(r"/o/?$", par_url):
+    direct_url = par_url.rstrip("/") + "/" + urllib.parse.quote(object_name, safe="/")
+else:
+    direct_url = par_url
+
+launch_url = "https://cloud.oracle.com/resourcemanager/stacks/create?zipUrl=" + urllib.parse.quote(direct_url, safe="")
+print(direct_url)
+print(launch_url)
 PY
+  )
+
+  PAR_DIRECT_URL="${par_lines[0]}"
+  PAR_LAUNCH_URL="${par_lines[1]}"
+
+  curl -fsSI "${PAR_DIRECT_URL}" >/dev/null
+  printf '%s\n' "${PAR_LAUNCH_URL}" > "${LAUNCH_URL_FILE}"
 
   {
     echo "- Launch URL artifact: \`$(basename "${LAUNCH_URL_FILE}")\`"
+    echo "- Direct ZIP URL: \`${PAR_DIRECT_URL}\`"
     echo "- PAR verification: succeeded with anonymous HEAD request"
   } >> "${SUMMARY_FILE}"
 else
   {
     echo "- Launch URL artifact: skipped"
-    echo "- Next step: set \`OCI_ORM_STACK_PAR_URL\` to a long-lived read PAR for this exact object key"
+    echo "- Next step: set \`OCI_ORM_STACK_PAR_URL\` to a long-lived read PAR for the object or the PAR base ending in \`/o/\`"
   } >> "${SUMMARY_FILE}"
 fi
 
