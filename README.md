@@ -92,9 +92,9 @@ With those values, Terraform creates:
 - an inline Kubernetes manifest for both app components
 - an OCI DevOps build/deploy rerun on every apply when DevOps is enabled
 
-### Option 2: Public one-click from GitHub using an Object Storage PAR
+### Option 2: Public one-click from OCI Resource Manager (Deploy to Oracle Cloud)
 
-Use this when you want a public one-click launch directly from GitHub to OCI Resource Manager.
+Use this when you want a public one-click launch from README into OCI Resource Manager using the Deploy to Oracle Cloud button.
 
 [![Deploy to Oracle Cloud](https://oci-resourcemanager-plugin.plugins.oci.oraclecloud.com/latest/deploy-to-oracle-cloud.svg)](https://cloud.oracle.com/resourcemanager/stacks/create?zipUrl=https%3A%2F%2Fobjectstorage.us-chicago-1.oraclecloud.com%2Fp%2FRwI5kCL81FFO7kO3NWo_FLx4U3kGx1SBJ-VDm01UGGB_fn5wlRvmBQ7cC8j6dKI_%2Fn%2Fax6ymbvwiimc%2Fb%2Fresult-artifact-mcp-oke%2Fo%2Fcode-release%252Foci-deploy-mcp-speech-demo-latest.zip)
 
