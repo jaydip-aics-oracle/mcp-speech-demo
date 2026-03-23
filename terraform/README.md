@@ -2,6 +2,12 @@
 
 This folder contains all Terraform code for provisioning infrastructure used by the MCP server + MCP client deployment.
 
+The stack now supports three deployment modes:
+
+- `infra_only` (infrastructure only)
+- `quick_deploy` (default): deploy prebuilt public images
+- `oci_devops`: rebuild from a user-provided OCI DevOps repository and deploy the result
+
 For OCI Resource Manager one-click stack packaging, this Terraform directory is bundled with root-level stack files:
 
 - `terraform/schema.yaml` -> used when Resource Manager reads directly from the OCI DevOps repository with working directory `terraform`
@@ -44,9 +50,9 @@ speech_bucket_name                   = "audio-bucket"
 ```
 
 `home_region` is optional. When omitted, Terraform derives the tenancy home region automatically and uses it for IAM resources.
-The stack is now opinionated toward the end-to-end OCI DevOps flow by default.
+The stack defaults to `quick_deploy` for public Resource Manager launches, but the same button and ZIP also support `infra_only` and `oci_devops`.
 The workload identity policy is created automatically when it does not already exist for the target compartment naming pattern.
-The stack creates OCI DevOps resources for both the MCP server and MCP client, and the end-to-end build/deploy flow is enabled by default when DevOps is enabled.
+The stack still uses OCI DevOps for the final OKE deployment action in `quick_deploy` and `oci_devops`, but only `oci_devops` mode requires a source repository mirror and OCIR auth details. `infra_only` skips application deployment entirely.
 `genai_model_id` and `genai_provider` already default to the repo's standard values.
 
 By default, Terraform generates stable names such as `mcp-audio-repo-hronz`, `mcp-client-repo-hronz`, and `mcp-audio-bucket-hronz` using `resource_name_prefix`, a base name, and the last 5 characters of the compartment OCID.
@@ -73,7 +79,7 @@ terraform apply -var-file=terraform.tfvars
 
 ### Direct from OCI DevOps repository
 
-Use this when you mirror this GitHub repository into OCI DevOps and want Resource Manager to read Terraform directly from that repository.
+Use this when you mirror this GitHub repository into OCI DevOps and want Resource Manager to rebuild from that source repository.
 
 This repo is Resource Manager-ready directly from source control:
 
@@ -92,7 +98,7 @@ In the OCI Console:
 7. Set working directory to `terraform`
 8. Review the schema-driven form and create the stack
 
-Expected result:
+Expected result in `deployment_mode = oci_devops`:
 
 - the stack creates infrastructure
 - the stack creates OCI DevOps build/deploy automation
@@ -120,10 +126,16 @@ Pre-existing requirements for this path:
 - `current_user_ocid` is explicitly set in stack variables
 - `ocir_auth_token` is set only when the current user already has 2 auth tokens
 
+For this mode, also set:
+
+```hcl
+deployment_mode = "oci_devops"
+```
+
 UI parity note:
 
 - Earlier UI runs often diverged from CLI runs because UI users relied on defaults (`master`, no explicit user/token), while CLI runs passed all variables explicitly.
-- The schema defaults are now aligned for end-to-end behavior: `devops_source_branch = one-click-deployment` and `devops_build_spec_path = build_spec.yaml`. When DevOps is enabled, the stack reruns the pipeline automatically on each apply.
+- The schema defaults are now aligned for public quick-deploy behavior. For advanced source builds, explicitly set `deployment_mode = oci_devops`, `devops_source_branch = one-click-deployment`, and `devops_build_spec_path = build_spec.yaml`.
 
 The one-click stack ZIP is built from `terraform/` and `terraform/modules/` plus `orm/schema.yaml` and `orm/provider_orm.tf`.
 For ZIP-backed stacks that already exist, `scripts/update_rm_stack_from_zip.sh` rebuilds the latest ZIP if needed, updates the stack source, and retries apply jobs from the CLI.
@@ -175,6 +187,13 @@ https://cloud.oracle.com/resourcemanager/stacks/create?zipUrl=https%3A%2F%2Fobje
 
 At the time of the last local check, that exact ZIP URL still returned `404`, so the GitHub workflow must publish the ZIP once before the public button works.
 
+Public quick-deploy mode uses these default images:
+
+- `ghcr.io/jaydip-aics-oracle/mcp-speech-demo-audio:latest`
+- `ghcr.io/jaydip-aics-oracle/mcp-speech-demo-client:latest`
+
+The GitHub release workflow now builds and pushes those images alongside the Resource Manager ZIP. The packages must be public for anonymous pulls from OKE to work.
+
 Manual fallback remains available through the repo Makefile-based flow documented in the root README.
 
 For local verification without publishing a release ZIP:
@@ -191,9 +210,10 @@ output/oci-deploy-mcp-speech-demo-latest.zip
 
 Upload that ZIP in OCI Resource Manager using **Create stack -> My configuration**.
 
-If you enable the OCI DevOps one-click path, also set:
+If you enable the OCI DevOps source-build path, also set:
 
 ```hcl
+deployment_mode       = "oci_devops"
 devops_repository_id   = "<DEVOPS_REPOSITORY_OCID>"
 devops_repository_url  = "https://devops.scmservice.<region>.oci.oraclecloud.com/namespaces/<namespace>/projects/<project>/repositories/<repo>"
 devops_source_branch   = "one-click-deployment"

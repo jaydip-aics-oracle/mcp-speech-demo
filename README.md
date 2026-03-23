@@ -1,6 +1,10 @@
 # MCP Audio + Client on OCI OKE
 
-This repository deploys the MCP audio server and MCP client on OCI Kubernetes Engine (OKE), pushes both container images to OCIR, and wires the client to the server MCP endpoint.
+This repository deploys the MCP audio server and MCP client on OCI Kubernetes Engine (OKE). The stack supports three deployment modes from the same button and same ZIP:
+
+- `infra_only` for infrastructure only
+- `quick_deploy` using prebuilt public images
+- `oci_devops` using a user-provided OCI DevOps source repository that rebuilds and deploys the app
 
 ## Deploy to OCI
 
@@ -20,15 +24,15 @@ This repository deploys the MCP audio server and MCP client on OCI Kubernetes En
 
 You have **3 ways** to deploy.
 
-### Option 1: Direct stack from an OCI DevOps mirror
+### Option 1: Advanced source build from an OCI DevOps mirror
 
-Use this when you mirror this GitHub repository into OCI DevOps and want Resource Manager to read Terraform directly from that repository.
+Use this when you mirror this GitHub repository into OCI DevOps and want Resource Manager to rebuild and deploy your own source from that repository.
 
 Behavior summary:
 
 - stack apply creates infrastructure
 - stack apply also creates DevOps build/deploy automation
-- with DevOps enabled, each apply reruns the end-to-end build/deploy flow
+- with `deployment_mode = oci_devops`, each apply reruns the end-to-end build/deploy flow
 - UI and CLI stay aligned when you provide `current_user_ocid` explicitly and keep `devops_source_branch` plus `devops_build_spec_path` pointed at the same branch content
 
 Before you press **Create** or **Apply**, make sure these already exist:
@@ -80,6 +84,7 @@ TF_VARS_JSON="terraform/stack.auto.tfvars.json" \
 For the full build-and-deploy path from that stack, set:
 
 ```hcl
+deployment_mode       = "oci_devops"
 devops_repository_id    = "<DEVOPS_REPOSITORY_OCID>"
 devops_repository_url   = "https://devops.scmservice.<region>.oci.oraclecloud.com/namespaces/<namespace>/projects/<project>/repositories/mcp-speech-demo"
 devops_source_branch    = "one-click-deployment"
@@ -98,7 +103,7 @@ With those values, Terraform creates:
 
 ### Option 2: Public one-click from OCI Resource Manager (Deploy to Oracle Cloud)
 
-Use this when you want a public one-click launch from README into OCI Resource Manager.
+Use this when you want a public one-click launch from README into OCI Resource Manager without asking the user for an OCI DevOps repository mirror.
 
 [![Deploy to Oracle Cloud](https://oci-resourcemanager-plugin.plugins.oci.oraclecloud.com/latest/deploy-to-oracle-cloud.svg)](https://cloud.oracle.com/resourcemanager/stacks/create?zipUrl=https%3A%2F%2Fobjectstorage.us-chicago-1.oraclecloud.com%2Fp%2FRwI5kCL81FFO7kO3NWo_FLx4U3kGx1SBJ-VDm01UGGB_fn5wlRvmBQ7cC8j6dKI_%2Fn%2Fax6ymbvwiimc%2Fb%2Fresult-artifact-mcp-oke%2Fo%2Fcode-release%252Foci-deploy-mcp-speech-demo-latest.zip)
 
@@ -108,11 +113,35 @@ User steps:
 2. In OCI Resource Manager, review stack variables and create the stack.
 3. Run **Plan** and then **Apply**.
 
-Expected result:
+Modes from the same button:
+
+1. `infra_only`
+   - creates only infrastructure
+   - no app deployment
+   - no load balancers for the app
+2. `quick_deploy`
+   - deploys prebuilt public images
+   - no OCI DevOps source repository input required
+3. `oci_devops`
+   - rebuilds from your OCI DevOps source repository
+   - requires OCI DevOps repository inputs and OCI user/auth details
+
+Default public-button behavior:
 
 - infrastructure is created
-- OCI DevOps build/deploy resources are created
-- stack outputs include cluster and pipeline IDs needed for follow-up checks
+- public prebuilt images are deployed to OKE
+- OCI DevOps is used only for the deployment action, not for source builds
+- no `devops_repository_id` or `devops_repository_url` is required unless you switch to `deployment_mode = oci_devops`
+
+Default public images:
+
+- server: `ghcr.io/jaydip-aics-oracle/mcp-speech-demo-audio:latest`
+- client: `ghcr.io/jaydip-aics-oracle/mcp-speech-demo-client:latest`
+
+Maintainer note:
+
+- the GitHub release workflow now publishes those images to GHCR
+- the GHCR packages must be public for anonymous cluster image pulls to work
 
 
 ### Local ZIP verification
@@ -135,7 +164,10 @@ Then in OCI Console:
 2. Choose **Create stack**
 3. Select **My configuration**
 4. Upload `output/oci-deploy-mcp-speech-demo-latest.zip`
-5. Provide the OCI DevOps repository OCID/URL and let the stack run the default end-to-end flow
+5. Choose one of:
+   - `deployment_mode = infra_only`
+   - `deployment_mode = quick_deploy`
+   - `deployment_mode = oci_devops`
 
 Based on your current environment, the initial values to use are:
 
@@ -146,14 +178,14 @@ home_region = us-chicago-1
 
 ### End-to-end verification
 
-For the full DevOps-enabled flow, verify in this order after stack apply:
+For verification after stack apply:
 
 1. Resource Manager apply succeeds
-2. OCI DevOps build pipeline run starts
-3. both images are delivered to OCIR
-4. deployment pipeline run succeeds
-5. the `fastmcp-server` and `fastmcp-client` services appear in namespace `mcp`
-6. the server `/health` endpoint and client LoadBalancer both become reachable
+2. if `deployment_mode = oci_devops`, the OCI DevOps build pipeline run starts
+3. if `deployment_mode = oci_devops`, both images are delivered to OCIR
+4. if `deployment_mode != infra_only`, deployment pipeline run succeeds
+5. if `deployment_mode != infra_only`, the `fastmcp-server` and `fastmcp-client` services appear in namespace `mcp`
+6. if `deployment_mode != infra_only`, the server `/health` endpoint and client LoadBalancer both become reachable
 
 ### Option 3: Easy mode with Makefile (manual fallback)
 

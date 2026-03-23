@@ -93,10 +93,33 @@ variable "speech_bucket_name" {
   }
 }
 
+variable "deployment_mode" {
+  description = "Application deployment mode. infra_only provisions only infrastructure, quick_deploy uses prebuilt public images, and oci_devops rebuilds from a user-provided OCI DevOps repository."
+  type        = string
+  default     = "quick_deploy"
+
+  validation {
+    condition     = contains(["infra_only", "quick_deploy", "oci_devops"], lower(trimspace(var.deployment_mode)))
+    error_message = "deployment_mode must be one of infra_only, quick_deploy, or oci_devops."
+  }
+}
+
+variable "prebuilt_server_image_uri" {
+  description = "Public image URI used for quick_deploy mode for the MCP server."
+  type        = string
+  default     = "ghcr.io/jaydip-aics-oracle/mcp-speech-demo-audio:latest"
+}
+
+variable "prebuilt_client_image_uri" {
+  description = "Public image URI used for quick_deploy mode for the MCP client."
+  type        = string
+  default     = "ghcr.io/jaydip-aics-oracle/mcp-speech-demo-client:latest"
+}
+
 variable "enable_devops_pipeline" {
-  description = "Enables OCI DevOps automation and reruns the end-to-end build/deploy pipeline on every stack apply."
+  description = "Deprecated compatibility toggle for advanced OCI DevOps source builds. Prefer deployment_mode."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "devops_project_name" {
@@ -181,7 +204,7 @@ variable "devops_image_tag" {
 }
 
 variable "devops_trigger_initial_build" {
-  description = "Deprecated compatibility flag. End-to-end OCI DevOps reruns are now controlled only by enable_devops_pipeline."
+  description = "Deprecated compatibility flag. End-to-end reruns are controlled by deployment_mode and the generated apply nonces."
   type        = bool
   default     = true
 }

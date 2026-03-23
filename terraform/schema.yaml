@@ -1,6 +1,6 @@
 title: "Launch MCP Audio + Client on OKE"
 description: "Deploy OKE infrastructure for the MCP server and MCP client."
-informationalText: "This stack provisions networking, OKE, OCIR repositories, IAM policy, and Object Storage bucket resources."
+informationalText: "Choose infra_only for infrastructure only, quick_deploy for prebuilt public images, or oci_devops to rebuild from your OCI DevOps repository."
 schemaVersion: 1.1.0
 version: "1.0"
 locale: "en"
@@ -23,16 +23,12 @@ variableGroups:
       - mcp_container_repository_name
       - mcp_client_container_repository_name
       - speech_bucket_name
-  - title: "OCI DevOps Automation"
+  - title: "Deployment Mode"
     variables:
-      - devops_repository_id
-      - devops_repository_url
-      - devops_source_branch
-      - devops_build_spec_path
+      - deployment_mode
+      - prebuilt_server_image_uri
+      - prebuilt_client_image_uri
       - devops_deploy_namespace
-      - devops_image_tag
-      - current_user_ocid
-      - ocir_auth_token
       - devops_server_secret_json
       - devops_client_secret_json
       - genai_model_id
@@ -40,6 +36,15 @@ variableGroups:
       - genai_model_temperature
       - genai_model_max_tokens
       - genai_service_endpoint
+  - title: "Advanced OCI DevOps Source Build"
+    variables:
+      - devops_repository_id
+      - devops_repository_url
+      - devops_source_branch
+      - devops_build_spec_path
+      - devops_image_tag
+      - current_user_ocid
+      - ocir_auth_token
   - title: "Network"
     variables:
       - control_subnet_cidr_block
@@ -92,48 +97,66 @@ variables:
     description: "Optional base name for the Speech Object Storage bucket."
     type: string
     required: false
+  deployment_mode:
+    title: "Deployment Mode"
+    description: "infra_only provisions only infrastructure, quick_deploy deploys prebuilt public images, and oci_devops rebuilds from your OCI DevOps repository."
+    type: string
+    default: "quick_deploy"
+    required: false
+  prebuilt_server_image_uri:
+    title: "Public Server Image"
+    description: "Server image used by quick_deploy mode. Ignored in infra_only mode."
+    type: string
+    default: "ghcr.io/jaydip-aics-oracle/mcp-speech-demo-audio:latest"
+    required: false
+  prebuilt_client_image_uri:
+    title: "Public Client Image"
+    description: "Client image used by quick_deploy mode. Ignored in infra_only mode."
+    type: string
+    default: "ghcr.io/jaydip-aics-oracle/mcp-speech-demo-client:latest"
+    required: false
   devops_repository_id:
     title: "OCI DevOps Repository OCID"
-    description: "OCI DevOps source repository that contains this branch and build spec."
+    description: "Only for oci_devops mode. OCI DevOps source repository that contains this branch and build spec."
     type: string
-    required: true
+    required: false
   devops_repository_url:
     title: "OCI DevOps Repository URL"
-    description: "Clone URL for the OCI DevOps repository used by the managed build stage."
+    description: "Only for oci_devops mode. Clone URL for the OCI DevOps repository used by the managed build stage."
     type: string
-    required: true
+    required: false
   devops_source_branch:
     title: "Source Branch"
-    description: "Repository branch built by OCI DevOps. Set this to the branch that contains your latest stack fixes."
+    description: "Only for oci_devops mode. Repository branch built by OCI DevOps."
     type: string
     default: "one-click-deployment"
     required: false
   devops_build_spec_path:
     title: "Build Spec Path"
-    description: "Path from repository root to the OCI DevOps build spec file."
+    description: "Only for oci_devops mode. Path from repository root to the OCI DevOps build spec file."
     type: string
     default: "build_spec.yaml"
     required: false
   devops_deploy_namespace:
     title: "Deploy Namespace"
-    description: "Kubernetes namespace used for OCI DevOps OKE deployment."
+    description: "Kubernetes namespace used for application deployment in quick_deploy and oci_devops modes."
     type: string
     default: "mcp"
     required: false
   devops_image_tag:
     title: "Image Tag"
-    description: "Container image tag delivered to OCIR and deployed to OKE."
+    description: "Only for oci_devops mode. Container image tag delivered to OCIR and deployed to OKE."
     type: string
     default: "latest"
     required: false
   current_user_ocid:
     title: "Current User OCID"
-    description: "OCI user OCID used for OCIR token lookup/creation. Provide this explicitly to avoid Resource Manager auto-population gaps."
+    description: "Only for oci_devops mode. OCI user OCID used for OCIR token lookup/creation. Not needed for infra_only or quick_deploy."
     type: string
-    required: true
+    required: false
   ocir_auth_token:
     title: "OCIR Auth Token"
-    description: "Fallback token for OCIR push/pull when the current user already has 2 auth tokens. Leave empty unless needed."
+    description: "Only for oci_devops mode. Fallback token for OCIR push/pull when the current user already has 2 auth tokens."
     type: string
     required: false
   devops_server_secret_json:
@@ -216,6 +239,11 @@ outputs:
     displayText: "Speech Bucket Name"
     type: copyableString
     visible: true
+  deployment_mode:
+    title: "Deployment Mode"
+    displayText: "Deployment Mode"
+    type: copyableString
+    visible: true
   devops_project_id:
     title: "OCI DevOps Project OCID"
     displayText: "OCI DevOps Project OCID"
@@ -234,5 +262,10 @@ outputs:
   devops_initial_build_run_id:
     title: "Initial Build Run OCID"
     displayText: "Initial Build Run OCID"
+    type: copyableString
+    visible: true
+  devops_initial_deployment_id:
+    title: "Initial Deployment OCID"
+    displayText: "Initial Deployment OCID"
     type: copyableString
     visible: true
