@@ -133,12 +133,45 @@ jobs:
           OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING: "True"
         run: ./scripts/publish_orm_stack_to_object_storage.sh "dist/${ZIP_NAME}"
 
+      - name: Generate mode-specific deploy URLs
+        if: ${{ vars.OCI_ORM_STACK_BUCKET != '' && vars.OCI_ORM_STACK_NAMESPACE != '' && vars.OCI_ORM_STACK_REGION != '' && vars.OCI_ORM_STACK_PAR_URL != '' }}
+        env:
+          OCI_ORM_STACK_PAR_URL: ${{ vars.OCI_ORM_STACK_PAR_URL }}
+          OCI_ORM_STACK_OBJECT_NAME: ${{ vars.OCI_ORM_STACK_OBJECT_NAME }}
+        run: |
+          python - <<'PY' > dist/deploy-mode-urls.txt
+          import json
+          import os
+          import urllib.parse
+
+          par_url = os.environ["OCI_ORM_STACK_PAR_URL"].rstrip("/")
+          object_name = os.environ.get("OCI_ORM_STACK_OBJECT_NAME", "oci-deploy-mcp-speech-demo-latest.zip").lstrip("/")
+          if "/o/" in par_url:
+            zip_url = f"{par_url}/{object_name}"
+          else:
+            zip_url = par_url
+
+          base = "https://cloud.oracle.com/resourcemanager/stacks/create?zipUrl="
+          encoded_zip = urllib.parse.quote(zip_url, safe="")
+
+          for mode in ("infra_only", "quick_deploy", "oci_devops"):
+            payload = urllib.parse.quote(json.dumps({"deployment_mode": mode}, separators=(",", ":")), safe="")
+            print(f"{mode}: {base}{encoded_zip}&zipUrlVariables={payload}")
+          PY
+
       - name: Upload deploy URL artifact
         if: ${{ vars.OCI_ORM_STACK_BUCKET != '' && vars.OCI_ORM_STACK_NAMESPACE != '' && vars.OCI_ORM_STACK_REGION != '' && vars.OCI_ORM_STACK_PAR_URL != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: deploy-to-oracle-cloud-url
           path: dist/deploy-to-oracle-cloud-url.txt
+
+      - name: Upload deploy mode URLs artifact
+        if: ${{ vars.OCI_ORM_STACK_BUCKET != '' && vars.OCI_ORM_STACK_NAMESPACE != '' && vars.OCI_ORM_STACK_REGION != '' && vars.OCI_ORM_STACK_PAR_URL != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-mode-urls
+          path: dist/deploy-mode-urls.txt
 
       - name: Summarize publish outputs
         if: ${{ vars.OCI_ORM_STACK_BUCKET != '' && vars.OCI_ORM_STACK_NAMESPACE != '' && vars.OCI_ORM_STACK_REGION != '' }}
@@ -149,4 +182,9 @@ jobs:
             echo "Published public image defaults:"
             echo "- ${{ steps.image_names.outputs.server }}:latest"
             echo "- ${{ steps.image_names.outputs.client }}:latest"
+            if [[ -f dist/deploy-mode-urls.txt ]]; then
+              echo
+              echo "Mode-specific deploy URLs:"
+              cat dist/deploy-mode-urls.txt
+            fi
           } >> "${GITHUB_STEP_SUMMARY}"

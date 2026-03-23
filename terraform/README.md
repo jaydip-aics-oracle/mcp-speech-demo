@@ -8,6 +8,76 @@ The stack now supports three deployment modes:
 - `quick_deploy` (default): deploy prebuilt public images
 - `oci_devops`: rebuild from a user-provided OCI DevOps repository and deploy the result
 
+## Variable guide by mode
+
+Use the same ZIP and the same Terraform for all three modes. What changes is which variables matter.
+
+### `infra_only`
+
+Set:
+
+- `compartment_id`
+- `region`
+
+Optional:
+
+- `home_region`
+- `cluster_name`
+- `resource_name_prefix`
+- naming overrides
+- subnet CIDRs
+
+Ignore:
+
+- `devops_repository_id`
+- `devops_repository_url`
+- `current_user_ocid`
+- `ocir_auth_token`
+- `prebuilt_server_image_uri`
+- `prebuilt_client_image_uri`
+
+### `quick_deploy`
+
+Set:
+
+- `compartment_id`
+- `region`
+
+Optional:
+
+- `prebuilt_server_image_uri`
+- `prebuilt_client_image_uri`
+- `devops_deploy_namespace`
+- app secret JSON fields
+- GenAI settings
+
+Ignore:
+
+- `devops_repository_id`
+- `devops_repository_url`
+- `current_user_ocid`
+- `ocir_auth_token`
+
+### `oci_devops`
+
+Set:
+
+- `compartment_id`
+- `region`
+- `devops_repository_id`
+- `devops_repository_url`
+- `current_user_ocid`
+
+Conditionally set:
+
+- `ocir_auth_token` only when the current user already has too many OCI auth tokens to create another one automatically
+
+Usually leave defaults:
+
+- `devops_source_branch = one-click-deployment`
+- `devops_build_spec_path = build_spec.yaml`
+- `devops_image_tag = latest`
+
 For OCI Resource Manager one-click stack packaging, this Terraform directory is bundled with root-level stack files:
 
 - `terraform/schema.yaml` -> used when Resource Manager reads directly from the OCI DevOps repository with working directory `terraform`
