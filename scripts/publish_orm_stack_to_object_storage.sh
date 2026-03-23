@@ -87,7 +87,7 @@ par_url = os.environ["OCI_ORM_STACK_PAR_URL"].strip()
 object_name = os.environ["OCI_ORM_STACK_OBJECT_NAME"].strip()
 
 if re.search(r"/o/?$", par_url):
-    direct_url = par_url.rstrip("/") + "/" + urllib.parse.quote(object_name, safe="/")
+    direct_url = par_url.rstrip("/") + "/" + urllib.parse.quote(object_name, safe="")
 else:
     direct_url = par_url
 
