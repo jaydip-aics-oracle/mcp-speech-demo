@@ -16,10 +16,15 @@ speech_bucket_name                   = "audio-bucket"
 # current_user_ocid       = "ocid1.user.oc1..<unique_id>"
 #
 # Optional overrides for the default end-to-end flow.
-# devops_source_branch    = "master"
+# devops_source_branch    = "one-click-deployment"
+# devops_build_spec_path  = "build_spec.yaml"
 # devops_deploy_namespace = "mcp"
 # devops_image_tag        = "latest"
 # ocir_auth_token         = "<existing-auth-token>"  # only if the current user already has 2 auth tokens
+# devops_server_secret_json = "{\"SPEECH_LANGUAGE_CODE\":\"auto\"}"
+# devops_client_secret_json = "{\"AGENT_RECURSION_LIMIT\":\"40\"}"
 # genai_model_id          = "cohere.command-a-03-2025"
 # genai_provider          = "cohere"
+# genai_model_temperature = 0.0
+# genai_model_max_tokens  = 4096
 # genai_service_endpoint  = "https://inference.generativeai.<region>.oci.oraclecloud.com"

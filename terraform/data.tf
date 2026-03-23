@@ -27,9 +27,16 @@ data "oci_identity_policies" "workload_policy_lookup" {
   state          = "ACTIVE"
 }
 
-data "oci_identity_policies" "devops_runtime_policy_lookup" {
+data "oci_identity_policies" "devops_build_runtime_policy_lookup" {
   provider       = oci.home
   compartment_id = var.compartment_id
-  name           = local.devops_runtime_policy_name
+  name           = local.devops_build_runtime_policy_name
+  state          = "ACTIVE"
+}
+
+data "oci_identity_policies" "devops_deploy_runtime_policy_lookup" {
+  provider       = oci.home
+  compartment_id = var.compartment_id
+  name           = local.devops_deploy_runtime_policy_name
   state          = "ACTIVE"
 }

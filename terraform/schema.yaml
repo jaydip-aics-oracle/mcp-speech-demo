@@ -10,7 +10,6 @@ variableGroups:
     visible: false
     variables:
       - tenancy_ocid
-      - current_user_ocid
   - title: "Core Configuration"
     variables:
       - compartment_id
@@ -29,11 +28,17 @@ variableGroups:
       - devops_repository_id
       - devops_repository_url
       - devops_source_branch
+      - devops_build_spec_path
       - devops_deploy_namespace
       - devops_image_tag
-      - devops_trigger_initial_build
+      - current_user_ocid
+      - ocir_auth_token
+      - devops_server_secret_json
+      - devops_client_secret_json
       - genai_model_id
       - genai_provider
+      - genai_model_temperature
+      - genai_model_max_tokens
       - genai_service_endpoint
   - title: "Network"
     variables:
@@ -99,9 +104,15 @@ variables:
     required: true
   devops_source_branch:
     title: "Source Branch"
-    description: "Repository branch built by OCI DevOps."
+    description: "Repository branch built by OCI DevOps. Set this to the branch that contains your latest stack fixes."
     type: string
-    default: "master"
+    default: "one-click-deployment"
+    required: false
+  devops_build_spec_path:
+    title: "Build Spec Path"
+    description: "Path from repository root to the OCI DevOps build spec file."
+    type: string
+    default: "build_spec.yaml"
     required: false
   devops_deploy_namespace:
     title: "Deploy Namespace"
@@ -115,16 +126,27 @@ variables:
     type: string
     default: "latest"
     required: false
-  devops_trigger_initial_build:
-    title: "Start Initial Build"
-    description: "When enabled, starts the first OCI DevOps build during stack apply. Disabled by default so stack apply can complete before post-provision build actions."
-    type: boolean
-    default: false
-    required: false
+  current_user_ocid:
+    title: "Current User OCID"
+    description: "OCI user OCID used for OCIR token lookup/creation. Provide this explicitly to avoid Resource Manager auto-population gaps."
+    type: string
+    required: true
   ocir_auth_token:
     title: "OCIR Auth Token"
-    description: "Optional fallback token used only if the current user has already reached the auth token quota."
+    description: "Fallback token for OCIR push/pull when the current user already has 2 auth tokens. Leave empty unless needed."
     type: string
+    required: false
+  devops_server_secret_json:
+    title: "Server Secret JSON"
+    description: "Optional JSON object of extra server env vars. Base server runtime envs are auto-populated by the stack. This field is mainly for tuning/overrides."
+    type: string
+    default: "{\"SPEECH_MODEL_TYPE\":\"WHISPER_LARGE_V3T\",\"SPEECH_LANGUAGE_CODE\":\"auto\",\"SPEECH_WHISPER_PROMPT\":\"This is a customer support conversation.\",\"SPEECH_DIARIZATION_ENABLED\":\"true\"}"
+    required: false
+  devops_client_secret_json:
+    title: "Client Secret JSON"
+    description: "Optional JSON object of extra client env vars. Base client runtime envs are auto-populated by the stack. This field is mainly for tuning/overrides."
+    type: string
+    default: "{\"AGENT_RECURSION_LIMIT\":\"40\",\"AGENT_MAX_CONCURRENCY\":\"8\",\"AGENT_TOOL_RUN_LIMIT\":\"36\"}"
     required: false
   genai_model_id:
     title: "GenAI Model ID"
@@ -137,6 +159,18 @@ variables:
     description: "Provider string passed to the OCI Generative AI client."
     type: string
     default: "cohere"
+    required: false
+  genai_model_temperature:
+    title: "GenAI Temperature"
+    description: "Temperature passed to the OCI Generative AI model."
+    type: number
+    default: 0.0
+    required: false
+  genai_model_max_tokens:
+    title: "GenAI Max Tokens"
+    description: "Maximum output tokens requested from the OCI Generative AI model. Use 4096 or lower for the current default model."
+    type: number
+    default: 4096
     required: false
   genai_service_endpoint:
     title: "GenAI Service Endpoint"

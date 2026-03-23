@@ -4,7 +4,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUTPUT_DIR="${1:-${ROOT_DIR}/output}"
-ZIP_NAME="oci-deploy-selfhosted-mcp-oke-latest.zip"
+ZIP_NAME="oci-deploy-mcp-speech-demo-latest.zip"
 STAGING_DIR="$(mktemp -d "${TMPDIR:-/tmp}/mcp-orm-stack.XXXXXX")"
 
 cleanup() {

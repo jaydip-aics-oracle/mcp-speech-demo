@@ -63,15 +63,80 @@ resource "oci_identity_auth_token" "ocir_pull" {
 }
 
 locals {
-  effective_devops_server_secret_data = length(var.devops_server_secret_data) > 0 ? var.devops_server_secret_data : {
-    STACK_BOOTSTRAP = "true"
-  }
-  effective_devops_client_secret_data = length(var.devops_client_secret_data) > 0 ? var.devops_client_secret_data : {
-    STACK_BOOTSTRAP = "true"
-  }
+  devops_server_secret_json_normalized = var.devops_server_secret_json == null ? "" : trimspace(var.devops_server_secret_json)
+  devops_client_secret_json_normalized = var.devops_client_secret_json == null ? "" : trimspace(var.devops_client_secret_json)
 
-  server_secret_string_data_yaml = indent(2, chomp(yamlencode(local.effective_devops_server_secret_data)))
-  client_secret_string_data_yaml = indent(2, chomp(yamlencode(local.effective_devops_client_secret_data)))
+  devops_server_secret_json_data = local.devops_server_secret_json_normalized != "" ? {
+    for key, value in tomap(jsondecode(local.devops_server_secret_json_normalized)) :
+    tostring(key) => tostring(value)
+  } : {}
+  devops_client_secret_json_data = local.devops_client_secret_json_normalized != "" ? {
+    for key, value in tomap(jsondecode(local.devops_client_secret_json_normalized)) :
+    tostring(key) => tostring(value)
+  } : {}
+
+  server_default_secret_data = {
+    STACK_BOOTSTRAP            = "true"
+    SPEECH_MODEL_TYPE          = "WHISPER_LARGE_V3T"
+    SPEECH_LANGUAGE_CODE       = "auto"
+    SPEECH_WHISPER_PROMPT      = "This is a customer support conversation."
+    SPEECH_DIARIZATION_ENABLED = "true"
+  }
+  server_runtime_secret_data = {
+    FASTMCP_APP_NAME  = "mcp-audio"
+    FASTMCP_HOST      = "0.0.0.0"
+    FASTMCP_PORT      = "8080"
+    FASTMCP_TRANSPORT = "http"
+    ENVIRONMENT       = "PRD"
+    OCI_REGION        = var.region
+    COMPARTMENT_ID    = var.compartment_id
+    OCI_NAMESPACE     = data.oci_objectstorage_namespace.this.namespace
+    SPEECH_BUCKET     = local.effective_speech_bucket_name
+  }
+  effective_devops_server_secret_data = merge(
+    local.server_default_secret_data,
+    var.devops_server_secret_data,
+    local.devops_server_secret_json_data,
+    local.server_runtime_secret_data,
+  )
+
+  client_default_secret_data = {
+    STACK_BOOTSTRAP       = "true"
+    MODEL_TEMPERATURE     = tostring(var.genai_model_temperature)
+    MODEL_MAX_TOKENS      = tostring(var.genai_model_max_tokens)
+    AGENT_RECURSION_LIMIT = "40"
+    AGENT_MAX_CONCURRENCY = "8"
+    AGENT_TOOL_RUN_LIMIT  = "36"
+  }
+  client_runtime_secret_data = {
+    ENVIRONMENT        = "PRD"
+    OCI_REGION         = var.region
+    COMPARTMENT_ID     = var.compartment_id
+    OCI_NAMESPACE      = data.oci_objectstorage_namespace.this.namespace
+    SPEECH_BUCKET      = local.effective_speech_bucket_name
+    MCP_URL            = "http://${local.server_service_name}.${var.devops_deploy_namespace}.svc.cluster.local/mcp/"
+    MCP_PUBLIC_URL     = "http://${local.server_service_name}.${var.devops_deploy_namespace}.svc.cluster.local/mcp/"
+    GRADIO_SERVER_NAME = "0.0.0.0"
+    GRADIO_SERVER_PORT = "7860"
+    MODEL_ID           = var.genai_model_id
+    PROVIDER           = var.genai_provider
+    SERVICE_ENDPOINT   = local.effective_genai_service_endpoint
+  }
+  effective_devops_client_secret_data = merge(
+    local.client_default_secret_data,
+    var.devops_client_secret_data,
+    local.devops_client_secret_json_data,
+    local.client_runtime_secret_data,
+  )
+
+  server_secret_string_data_yaml = join("\n", [
+    for line in split("\n", chomp(yamlencode(local.effective_devops_server_secret_data))) :
+    "  ${line}"
+  ])
+  client_secret_string_data_yaml = join("\n", [
+    for line in split("\n", chomp(yamlencode(local.effective_devops_client_secret_data))) :
+    "  ${line}"
+  ])
 
   ocir_auth_b64 = local.use_ocir_pull_secret ? base64encode("${local.ocir_username}:${local.ocir_password}") : ""
 
@@ -96,17 +161,19 @@ data:
 YAML
 ) : ""
 
-image_pull_secrets_yaml = local.use_ocir_pull_secret ? chomp(<<-YAML
-      imagePullSecrets:
-        - name: ocirsecret
-YAML
-) : ""
+image_pull_secrets_yaml = local.use_ocir_pull_secret ? join("\n", [
+  "      imagePullSecrets:",
+  "        - name: ocirsecret",
+]) : ""
 
-devops_manifest_inline = <<-YAML
+devops_namespace_manifest_inline = <<-YAML
 apiVersion: v1
 kind: Namespace
 metadata:
   name: ${var.devops_deploy_namespace}
+YAML
+
+devops_workload_manifest_inline = <<-YAML
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -163,28 +230,10 @@ ${local.image_pull_secrets_yaml}
           envFrom:
             - secretRef:
                 name: mcp-secrets
-          env:
-            - name: FASTMCP_APP_NAME
-              value: mcp-audio
-            - name: FASTMCP_HOST
-              value: 0.0.0.0
-            - name: FASTMCP_PORT
-              value: "8080"
-            - name: FASTMCP_TRANSPORT
-              value: http
-            - name: ENVIRONMENT
-              value: PRD
-            - name: OCI_REGION
-              value: ${var.region}
-            - name: COMPARTMENT_ID
-              value: ${var.compartment_id}
-            - name: OCI_NAMESPACE
-              value: ${data.oci_objectstorage_namespace.this.namespace}
-            - name: SPEECH_BUCKET
-              value: ${local.effective_speech_bucket_name}
           ports:
             - name: http
               containerPort: 8080
+              protocol: TCP
           readinessProbe:
             httpGet:
               path: /health
@@ -212,6 +261,7 @@ spec:
     - name: http
       port: 80
       targetPort: http
+      protocol: TCP
   type: LoadBalancer
 ---
 apiVersion: apps/v1
@@ -238,38 +288,10 @@ ${local.image_pull_secrets_yaml}
           envFrom:
             - secretRef:
                 name: mcp-client-secrets
-          env:
-            - name: ENVIRONMENT
-              value: PRD
-            - name: OCI_REGION
-              value: ${var.region}
-            - name: COMPARTMENT_ID
-              value: ${var.compartment_id}
-            - name: OCI_NAMESPACE
-              value: ${data.oci_objectstorage_namespace.this.namespace}
-            - name: SPEECH_BUCKET
-              value: ${local.effective_speech_bucket_name}
-            - name: MCP_URL
-              value: http://${local.server_service_name}.${var.devops_deploy_namespace}.svc.cluster.local/mcp/
-            - name: MCP_PUBLIC_URL
-              value: http://${local.server_service_name}.${var.devops_deploy_namespace}.svc.cluster.local/mcp/
-            - name: GRADIO_SERVER_NAME
-              value: 0.0.0.0
-            - name: GRADIO_SERVER_PORT
-              value: "7860"
-            - name: MODEL_ID
-              value: ${var.genai_model_id}
-            - name: PROVIDER
-              value: ${var.genai_provider}
-            - name: SERVICE_ENDPOINT
-              value: ${local.effective_genai_service_endpoint}
-            - name: MODEL_TEMPERATURE
-              value: "0.0"
-            - name: MODEL_MAX_TOKENS
-              value: "8192"
           ports:
             - name: http
               containerPort: 7860
+              protocol: TCP
           readinessProbe:
             httpGet:
               path: /
@@ -297,28 +319,41 @@ spec:
     - name: http
       port: 80
       targetPort: http
+      protocol: TCP
   type: LoadBalancer
 YAML
 }
 
-resource "oci_identity_policy" "devops_runtime_policy" {
-  count    = var.enable_devops_pipeline && length(data.oci_identity_policies.devops_runtime_policy_lookup.policies) == 0 ? 1 : 0
+resource "oci_identity_policy" "devops_build_runtime_policy" {
+  count    = var.enable_devops_pipeline ? 1 : 0
   provider = oci.home
 
-  # Keep DevOps service permissions scoped to the deployment compartment so
-  # the stack can manage everything it is allowed to from Resource Manager.
   compartment_id = var.compartment_id
-  name           = local.devops_runtime_policy_name
-  description    = "Allow OCI DevOps managed build and deployment stages to operate in the MCP stack compartment."
+  name           = local.devops_build_runtime_policy_name
+  description    = "Allow the OCI DevOps build pipeline principal to build and deliver MCP images within the deployment compartment."
 
   statements = [
-    "Allow dynamic-group DevOpsDynamicGroup to manage repos in compartment id ${var.compartment_id}",
-    "Allow dynamic-group DevOpsDynamicGroup to inspect repos in compartment id ${var.compartment_id}",
-    "Allow dynamic-group DevOpsDynamicGroup to use repos in compartment id ${var.compartment_id}",
-    "Allow dynamic-group DevOpsDynamicGroup to manage devops-family in compartment id ${var.compartment_id}",
-    "Allow dynamic-group DevOpsDynamicGroup to read all-artifacts in compartment id ${var.compartment_id}",
-    "Allow dynamic-group DevOpsDynamicGroup to manage cluster in compartment id ${var.compartment_id}",
-    "Allow dynamic-group DevOpsDynamicGroup to use ons-topics in compartment id ${var.compartment_id}",
+    "Allow any-user to inspect repos in compartment id ${var.compartment_id} where all { request.principal.type = 'devopsbuildpipeline', request.principal.id = '${oci_devops_build_pipeline.mcp[0].id}' }",
+    "Allow any-user to use repos in compartment id ${var.compartment_id} where all { request.principal.type = 'devopsbuildpipeline', request.principal.id = '${oci_devops_build_pipeline.mcp[0].id}' }",
+    "Allow any-user to manage repos in compartment id ${var.compartment_id} where all { request.principal.type = 'devopsbuildpipeline', request.principal.id = '${oci_devops_build_pipeline.mcp[0].id}' }",
+    "Allow any-user to manage devops-family in compartment id ${var.compartment_id} where all { request.principal.type = 'devopsbuildpipeline', request.principal.id = '${oci_devops_build_pipeline.mcp[0].id}' }",
+    "Allow any-user to read all-artifacts in compartment id ${var.compartment_id} where all { request.principal.type = 'devopsbuildpipeline', request.principal.id = '${oci_devops_build_pipeline.mcp[0].id}' }",
+    "Allow any-user to use ons-topics in compartment id ${var.compartment_id} where all { request.principal.type = 'devopsbuildpipeline', request.principal.id = '${oci_devops_build_pipeline.mcp[0].id}' }",
+    "Allow any-user to manage cluster in compartment id ${var.compartment_id} where all { request.principal.type = 'devopsbuildpipeline', request.principal.id = '${oci_devops_build_pipeline.mcp[0].id}' }",
+  ]
+}
+
+resource "oci_identity_policy" "devops_deploy_runtime_policy" {
+  count    = var.enable_devops_pipeline ? 1 : 0
+  provider = oci.home
+
+  compartment_id = var.compartment_id
+  name           = local.devops_deploy_runtime_policy_name
+  description    = "Allow the OCI DevOps deploy pipeline principal to deploy the MCP workload to OKE within the deployment compartment."
+
+  statements = [
+    "Allow any-user to read all-artifacts in compartment id ${var.compartment_id} where all { request.principal.type = 'devopsdeploypipeline', request.principal.id = '${oci_devops_deploy_pipeline.mcp[0].id}' }",
+    "Allow any-user to manage cluster in compartment id ${var.compartment_id} where all { request.principal.type = 'devopsdeploypipeline', request.principal.id = '${oci_devops_deploy_pipeline.mcp[0].id}' }",
   ]
 }
 
@@ -342,40 +377,17 @@ resource "oci_ons_notification_topic" "devops" {
   description    = "Notification topic for MCP OCI DevOps project events"
 }
 
-data "oci_logging_log_groups" "devops" {
-  compartment_id = var.compartment_id
-  display_name   = local.devops_logging_log_group_name
-}
-
-locals {
-  devops_logging_log_group_exists = length(data.oci_logging_log_groups.devops.log_groups) > 0
-  devops_logging_log_group_id     = local.devops_logging_log_group_exists ? data.oci_logging_log_groups.devops.log_groups[0].id : oci_logging_log_group.devops[0].id
-}
-
 resource "oci_logging_log_group" "devops" {
-  count          = var.enable_devops_pipeline && !local.devops_logging_log_group_exists ? 1 : 0
+  count          = var.enable_devops_pipeline ? 1 : 0
   compartment_id = var.compartment_id
   display_name   = local.devops_logging_log_group_name
   description    = "Log group for MCP OCI DevOps project logs"
 }
 
-data "oci_logging_logs" "devops" {
-  count          = local.devops_logging_log_group_exists ? 1 : 0
-  log_group_id   = local.devops_logging_log_group_id
-  display_name   = local.devops_logging_log_name
-  log_type       = "SERVICE"
-  source_service = "devops"
-  state          = "ACTIVE"
-}
-
-locals {
-  devops_logging_log_exists = local.devops_logging_log_group_exists ? length(data.oci_logging_logs.devops[0].logs) > 0 : false
-}
-
 resource "oci_logging_log" "devops" {
-  count        = var.enable_devops_pipeline && !local.devops_logging_log_exists ? 1 : 0
+  count        = var.enable_devops_pipeline ? 1 : 0
   display_name = local.devops_logging_log_name
-  log_group_id = local.devops_logging_log_group_id
+  log_group_id = oci_logging_log_group.devops[0].id
   log_type     = "SERVICE"
   is_enabled   = true
 
@@ -441,7 +453,22 @@ resource "oci_devops_deploy_artifact" "k8s_manifest" {
 
   deploy_artifact_source {
     deploy_artifact_source_type = "INLINE"
-    base64encoded_content       = base64encode(local.devops_manifest_inline)
+    base64encoded_content       = base64encode(local.devops_workload_manifest_inline)
+  }
+}
+
+resource "oci_devops_deploy_artifact" "k8s_namespace_manifest" {
+  count = var.enable_devops_pipeline ? 1 : 0
+
+  project_id                 = oci_devops_project.mcp[0].id
+  display_name               = "${local.resource_name_prefix}-k8s-namespace-${local.generated_name_suffix}"
+  description                = "Kubernetes namespace manifest artifact for MCP workloads"
+  deploy_artifact_type       = "KUBERNETES_MANIFEST"
+  argument_substitution_mode = "NONE"
+
+  deploy_artifact_source {
+    deploy_artifact_source_type = "INLINE"
+    base64encoded_content       = base64encode(local.devops_namespace_manifest_inline)
   }
 }
 
@@ -451,6 +478,24 @@ resource "oci_devops_deploy_pipeline" "mcp" {
   project_id   = oci_devops_project.mcp[0].id
   display_name = var.devops_deploy_pipeline_name
   description  = "Deploy pipeline for MCP workloads on OKE"
+}
+
+resource "oci_devops_deploy_stage" "oke_namespace" {
+  count = var.enable_devops_pipeline ? 1 : 0
+
+  deploy_pipeline_id                      = oci_devops_deploy_pipeline.mcp[0].id
+  deploy_stage_type                       = "OKE_DEPLOYMENT"
+  display_name                            = "create-mcp-namespace"
+  description                             = "Creates the Kubernetes namespace used for MCP workloads"
+  oke_cluster_deploy_environment_id       = oci_devops_deploy_environment.oke[0].id
+  kubernetes_manifest_deploy_artifact_ids = [oci_devops_deploy_artifact.k8s_namespace_manifest[0].id]
+  namespace                               = "default"
+
+  deploy_stage_predecessor_collection {
+    items {
+      id = oci_devops_deploy_pipeline.mcp[0].id
+    }
+  }
 }
 
 resource "oci_devops_deploy_stage" "oke_deploy" {
@@ -466,7 +511,7 @@ resource "oci_devops_deploy_stage" "oke_deploy" {
 
   deploy_stage_predecessor_collection {
     items {
-      id = oci_devops_deploy_pipeline.mcp[0].id
+      id = oci_devops_deploy_stage.oke_namespace[0].id
     }
   }
 }
@@ -551,15 +596,30 @@ resource "oci_devops_build_pipeline_stage" "trigger_deploy" {
   }
 }
 
+resource "terraform_data" "initial_build_run_nonce" {
+  count = var.enable_devops_pipeline ? 1 : 0
+
+  input = plantimestamp()
+}
+
 resource "oci_devops_build_run" "initial" {
-  count = var.enable_devops_pipeline && var.devops_trigger_initial_build ? 1 : 0
+  count = var.enable_devops_pipeline ? 1 : 0
 
   build_pipeline_id = oci_devops_build_pipeline.mcp[0].id
   display_name      = "initial-mcp-build-run"
 
+  lifecycle {
+    replace_triggered_by = [terraform_data.initial_build_run_nonce[0]]
+  }
+
   depends_on = [
     oci_logging_log.devops,
-    oci_identity_policy.devops_runtime_policy,
+    oci_identity_policy.devops_build_runtime_policy,
+    oci_identity_policy.devops_deploy_runtime_policy,
+    module.oke_virtual_nodes,
+    oci_devops_deploy_environment.oke,
+    oci_devops_deploy_stage.oke_namespace,
+    oci_devops_deploy_stage.oke_deploy,
     oci_devops_build_pipeline_stage.trigger_deploy,
   ]
 }

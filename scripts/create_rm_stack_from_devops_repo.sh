@@ -14,7 +14,7 @@ Required environment variables:
 Optional environment variables:
   STACK_DISPLAY_NAME     Stack display name
   STACK_DESCRIPTION      Stack description
-  DEVOPS_BRANCH          Repo branch to use (default: master)
+  DEVOPS_BRANCH          Repo branch to use (default: one-click-deployment)
   STACK_WORKING_DIR      Terraform working directory in the repo (default: terraform)
   TERRAFORM_VERSION      Terraform version for the stack (default: 1.5.x)
   TF_VARS_JSON           Path to a JSON file of Terraform variables for the stack
@@ -52,9 +52,9 @@ require_env "COMPARTMENT_OCID"
 require_env "DEVOPS_PROJECT_ID"
 require_env "DEVOPS_REPOSITORY_ID"
 
-STACK_DISPLAY_NAME="${STACK_DISPLAY_NAME:-selfhosted-mcp-oke-devops-stack}"
+STACK_DISPLAY_NAME="${STACK_DISPLAY_NAME:-mcp-speech-demo-devops-stack}"
 STACK_DESCRIPTION="${STACK_DESCRIPTION:-MCP Audio + Client on OKE from OCI DevOps repository}"
-DEVOPS_BRANCH="${DEVOPS_BRANCH:-master}"
+DEVOPS_BRANCH="${DEVOPS_BRANCH:-one-click-deployment}"
 STACK_WORKING_DIR="${STACK_WORKING_DIR:-terraform}"
 TERRAFORM_VERSION="${TERRAFORM_VERSION:-1.5.x}"
 WAIT_FOR_STATE="${WAIT_FOR_STATE:-SUCCEEDED}"

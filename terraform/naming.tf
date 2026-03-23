@@ -13,9 +13,10 @@ locals {
   effective_mcp_client_container_repository_name = "${local.resource_name_prefix}-${local.mcp_client_container_repository_base_name}-${local.generated_name_suffix}"
   effective_speech_bucket_name                   = "${local.resource_name_prefix}-${local.speech_bucket_base_name}-${local.generated_name_suffix}"
 
-  workload_policy_name        = "${local.resource_name_prefix}-workload-${local.generated_name_suffix}"
-  devops_runtime_policy_name  = "${local.resource_name_prefix}-devops-runtime-${local.generated_name_suffix}"
-  devops_project_name_default = "${local.resource_name_prefix}-devops-${local.generated_name_suffix}"
-  server_service_name         = "fastmcp-server"
-  client_service_name         = "fastmcp-client"
+  workload_policy_name              = "${local.resource_name_prefix}-workload-${local.generated_name_suffix}"
+  devops_build_runtime_policy_name  = "${local.resource_name_prefix}-devops-build-rp-${local.generated_name_suffix}"
+  devops_deploy_runtime_policy_name = "${local.resource_name_prefix}-devops-deploy-rp-${local.generated_name_suffix}"
+  devops_project_name_default       = "${local.resource_name_prefix}-devops-${local.generated_name_suffix}"
+  server_service_name               = "fastmcp-server"
+  client_service_name               = "fastmcp-client"
 }

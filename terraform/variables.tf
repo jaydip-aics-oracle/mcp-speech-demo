@@ -94,7 +94,7 @@ variable "speech_bucket_name" {
 }
 
 variable "enable_devops_pipeline" {
-  description = "Internal compatibility switch for OCI DevOps automation. Resource Manager schema keeps this enabled by default."
+  description = "Enables OCI DevOps automation and reruns the end-to-end build/deploy pipeline on every stack apply."
   type        = bool
   default     = true
 }
@@ -147,7 +147,7 @@ variable "devops_repository_url" {
 variable "devops_source_branch" {
   description = "Repository branch used by OCI DevOps build stages."
   type        = string
-  default     = "master"
+  default     = "one-click-deployment"
 }
 
 variable "devops_build_spec_path" {
@@ -181,13 +181,13 @@ variable "devops_image_tag" {
 }
 
 variable "devops_trigger_initial_build" {
-  description = "When true, starts the initial OCI DevOps build run after provisioning. Disabled by default so Resource Manager apply is not blocked by post-provision DevOps build readiness."
+  description = "Deprecated compatibility flag. End-to-end OCI DevOps reruns are now controlled only by enable_devops_pipeline."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "current_user_ocid" {
-  description = "Current OCI user OCID. Resource Manager can auto-populate this for OCIR token generation."
+  description = "Current OCI user OCID used for OCIR auth token lookup/creation. Provide explicitly in UI/ZIP flows to avoid auto-population gaps."
   type        = string
   default     = null
   nullable    = true
@@ -213,11 +213,37 @@ variable "devops_server_secret_data" {
   sensitive   = true
 }
 
+variable "devops_server_secret_json" {
+  description = "Optional JSON object of additional secret env vars for the server deployment. Useful for UI/ZIP stack inputs."
+  type        = string
+  default     = "{\"SPEECH_MODEL_TYPE\":\"WHISPER_LARGE_V3T\",\"SPEECH_LANGUAGE_CODE\":\"auto\",\"SPEECH_WHISPER_PROMPT\":\"This is a customer support conversation.\",\"SPEECH_DIARIZATION_ENABLED\":\"true\"}"
+  nullable    = true
+  sensitive   = true
+
+  validation {
+    condition     = (var.devops_server_secret_json == null ? "" : trimspace(var.devops_server_secret_json)) == "" || can(tomap(jsondecode(trimspace(var.devops_server_secret_json))))
+    error_message = "devops_server_secret_json must be empty or a valid JSON object such as {\"SPEECH_LANGUAGE_CODE\":\"auto\"}."
+  }
+}
+
 variable "devops_client_secret_data" {
   description = "Key/value pairs rendered into Kubernetes secret mcp-client-secrets for the client deployment."
   type        = map(string)
   default     = {}
   sensitive   = true
+}
+
+variable "devops_client_secret_json" {
+  description = "Optional JSON object of additional secret env vars for the client deployment. Useful for UI/ZIP stack inputs."
+  type        = string
+  default     = "{\"AGENT_RECURSION_LIMIT\":\"40\",\"AGENT_MAX_CONCURRENCY\":\"8\",\"AGENT_TOOL_RUN_LIMIT\":\"36\"}"
+  nullable    = true
+  sensitive   = true
+
+  validation {
+    condition     = (var.devops_client_secret_json == null ? "" : trimspace(var.devops_client_secret_json)) == "" || can(tomap(jsondecode(trimspace(var.devops_client_secret_json))))
+    error_message = "devops_client_secret_json must be empty or a valid JSON object such as {\"AGENT_RECURSION_LIMIT\":\"40\"}."
+  }
 }
 
 variable "genai_model_id" {
@@ -232,6 +258,23 @@ variable "genai_provider" {
   type        = string
   default     = "cohere"
   nullable    = true
+}
+
+variable "genai_model_temperature" {
+  description = "Temperature passed to the OCI Generative AI chat model."
+  type        = number
+  default     = 0.0
+}
+
+variable "genai_model_max_tokens" {
+  description = "Maximum output tokens requested from the OCI Generative AI chat model."
+  type        = number
+  default     = 4096
+
+  validation {
+    condition     = var.genai_model_max_tokens > 0 && var.genai_model_max_tokens <= 4096
+    error_message = "genai_model_max_tokens must be between 1 and 4096 for the current default model configuration."
+  }
 }
 
 variable "genai_service_endpoint" {

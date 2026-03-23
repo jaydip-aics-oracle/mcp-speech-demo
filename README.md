@@ -16,39 +16,39 @@ This repository deploys the MCP audio server and MCP client on OCI Kubernetes En
 
 You have **3 ways** to deploy.
 
-### Option 1: Direct stack from the OCI DevOps repo
+### Option 1: Direct stack from an OCI DevOps mirror
 
-Use this when you want to keep the source private and create the Resource Manager stack from the OCI DevOps repository itself.
+Use this when you mirror this GitHub repository into OCI DevOps and want Resource Manager to read Terraform directly from that repository.
 
 Behavior summary:
 
 - stack apply creates infrastructure
 - stack apply also creates DevOps build/deploy automation
-- the first build run is optional and is disabled by default, so stack apply can finish cleanly before you trigger the OCI DevOps build/deploy flow
+- with DevOps enabled, each apply reruns the end-to-end build/deploy flow
+- UI and CLI stay aligned when you provide `current_user_ocid` explicitly and keep `devops_source_branch` plus `devops_build_spec_path` pointed at the same branch content
 
 Before you press **Create** or **Apply**, make sure these already exist:
 
 - the OCI DevOps project
-- the OCI DevOps repository
-- the `master` branch in that repository
-- a valid `devops_repository_id` / `devops_repository_url` pair for the same repository
+- an OCI DevOps repository containing this repo's contents
+- the `one-click-deployment` branch in that repository, or another branch you set explicitly
+- a valid `devops_repository_id` / `devops_repository_url` pair for that same repository
 - your OCIR username and auth token for the image pull secret
 
-Current repo details for this environment:
+Recommended repository shape:
 
 ```text
-Repository URL: https://devops.scmservice.us-chicago-1.oci.oraclecloud.com/namespaces/ax6ymbvwiimc/projects/hosted-mcp-oke/repositories/selfhosted-mcp-oke
-Branch: master
+Repository URL: https://devops.scmservice.<region>.oci.oraclecloud.com/namespaces/<namespace>/projects/<project>/repositories/mcp-speech-demo
+Branch: one-click-deployment
 Working directory: terraform
 ```
 
-What changed in this repo to support that path:
+What this repo includes for that path:
 
-- `terraform/schema.yaml` now sits in the same working directory as the Terraform code, so Resource Manager can load the schema directly from the repo-backed stack source.
-- `terraform/provider.tf` is now the same provider file used both locally and in the packaged ZIP flow.
-- `scripts/create_rm_stack_from_devops_repo.sh` wraps the OCI CLI command for creating a stack from an OCI DevOps repository source.
-- `scripts/update_rm_stack_from_zip.sh` rebuilds the ZIP when needed, updates an existing ZIP-backed stack, and retries apply jobs from the CLI.
-- The existing ZIP/ORM packaging path remains in `orm/` for local ZIP upload and public quick-create packaging.
+- `terraform/schema.yaml` in the Terraform working directory for repo-backed Resource Manager stacks
+- `scripts/create_rm_stack_from_devops_repo.sh` for CLI creation from an OCI DevOps source
+- `scripts/update_rm_stack_from_zip.sh` for updating an existing ZIP-backed stack and retrying apply jobs
+- the same `build_spec.yaml` path used by OCI DevOps and the ZIP-packaged Resource Manager flow
 
 Console flow:
 
@@ -56,7 +56,7 @@ Console flow:
 2. Choose **Create stack**
 3. Select **Source code control system**
 4. Choose **DevOps**
-5. Select project `hosted-mcp-oke`, repository `selfhosted-mcp-oke`, branch `master`
+5. Select your project, repository, and branch `one-click-deployment`
 6. Set **Working directory** to `terraform`
 7. Review variables from `terraform/schema.yaml`, then create the stack
 8. Run **Plan** and **Apply**
@@ -77,8 +77,9 @@ For the full build-and-deploy path from that stack, set:
 
 ```hcl
 devops_repository_id    = "<DEVOPS_REPOSITORY_OCID>"
-devops_repository_url   = "https://devops.scmservice.us-chicago-1.oci.oraclecloud.com/namespaces/ax6ymbvwiimc/projects/hosted-mcp-oke/repositories/selfhosted-mcp-oke"
-devops_source_branch    = "master"
+devops_repository_url   = "https://devops.scmservice.<region>.oci.oraclecloud.com/namespaces/<namespace>/projects/<project>/repositories/mcp-speech-demo"
+devops_source_branch    = "one-click-deployment"
+devops_build_spec_path  = "build_spec.yaml"
 devops_deploy_namespace = "mcp"
 ```
 
@@ -89,35 +90,61 @@ With those values, Terraform creates:
 - the deployment pipeline
 - the OKE deployment environment
 - an inline Kubernetes manifest for both app components
-- an optional initial build run only when `devops_trigger_initial_build = true`
+- an OCI DevOps build/deploy rerun on every apply when DevOps is enabled
 
-### Option 2: Public one-click from OCI Resource Manager (Deploy to Oracle Cloud)
+### Option 2: Public one-click from GitHub using an Object Storage PAR
 
-Use this when you want OCI Stack creation directly from a public release ZIP.
+Use this when you want GitHub to publish the ORM ZIP and keep a stable **Deploy to Oracle Cloud** button backed by an OCI Object Storage pre-authenticated request (PAR).
 
 Behavior summary:
 
-- stack apply creates infrastructure
-- stack apply also creates DevOps build/deploy automation
-- the first build run is optional and is disabled by default, so stack apply can finish before any OCI DevOps build starts
+- GitHub Actions builds `oci-deploy-mcp-speech-demo-latest.zip`
+- the same workflow can upload that ZIP to a fixed Object Storage object key
+- your public button points `zipUrl` at the URL-encoded PAR for that object
+- Resource Manager create/apply then provisions infrastructure and reruns the DevOps build/deploy flow
 
-1. Click your public deploy button (replace `<org>/<repo>` with your public mirror):
+One-time GitHub setup:
+
+- create a bucket and pick a stable object key such as `orm/oci-deploy-mcp-speech-demo-latest.zip`
+- create a long-lived read PAR for that exact object key
+- add these repository variables:
+  `OCI_ORM_STACK_BUCKET`, `OCI_ORM_STACK_NAMESPACE`, `OCI_ORM_STACK_REGION`
+- optional repository variables:
+  `OCI_ORM_STACK_OBJECT_NAME`, `OCI_ORM_STACK_PAR_URL`
+- add these repository secrets:
+  `OCI_CLI_USER_OCID`, `OCI_CLI_TENANCY_OCID`, `OCI_CLI_FINGERPRINT`, `OCI_CLI_PRIVATE_KEY`
+- optional repository secret:
+  `OCI_CLI_PRIVATE_KEY_PASSPHRASE`
+
+Public button format:
 
 ```html
-<a href="https://cloud.oracle.com/resourcemanager/stacks/create?region=home&zipUrl=https://github.com/<org>/<repo>/releases/latest/download/oci-deploy-selfhosted-mcp-oke-latest.zip" target="_blank"><img src="https://oci-resourcemanager-plugin.plugins.oci.oraclecloud.com/latest/deploy-to-oracle-cloud.svg" alt="Deploy to Oracle Cloud"/></a>
+<a href="https://cloud.oracle.com/resourcemanager/stacks/create?zipUrl=<URL_ENCODED_OCI_PAR_URL>" target="_blank" rel="noopener noreferrer"><img src="https://oci-resourcemanager-plugin.plugins.oci.oraclecloud.com/latest/deploy-to-oracle-cloud.svg" alt="Deploy to Oracle Cloud"/></a>
 ```
 
+Publishing flow:
+
+1. Run `.github/workflows/build-orm-stack-zip.yml` manually or publish a GitHub release.
+2. The workflow builds the ORM ZIP, uploads it as a workflow artifact, attaches it to the GitHub release, and, when the OCI variables are configured, uploads the same ZIP to Object Storage.
+3. If `OCI_ORM_STACK_PAR_URL` is configured, the workflow also emits `deploy-to-oracle-cloud-url.txt` as an artifact containing the fully encoded `cloud.oracle.com/resourcemanager/stacks/create?zipUrl=...` URL.
+4. Use the contents of that generated file as the final button `href`, then keep the same Object Storage object key for future releases.
+
+After the button is live:
+
+1. Click the button from GitHub.
 2. On **Create Stack**, review variables from the ZIP-packaged `schema.yaml` and create the stack.
 3. Run **Plan** and **Apply** from Resource Manager.
-4. For the full one-click flow, provide the OCI DevOps repository OCID/URL plus the GenAI model/provider variables so the stack can create the pipelines. If you want the first build/deploy to start during stack apply, explicitly set `devops_trigger_initial_build = true`. The stack auto-creates the OCIR auth token unless the current user has already hit the token quota, in which case you provide one fallback token value only.
+4. Provide the OCI DevOps repository OCID/URL, `current_user_ocid`, and GenAI model/provider variables so the stack can create pipelines and OCIR auth correctly.
 5. Use stack outputs such as `cluster_id`, `mcp_server_repository_path`, `mcp_client_repository_path`, `oci_namespace`, `speech_bucket_name`, `devops_build_pipeline_id`, and `devops_deploy_pipeline_id`.
 
 Notes:
+
 - The ZIP packaging config is in `release_files.json`.
 - Resource Manager ZIP-specific files remain under `orm/`.
 - This flow packages Terraform from `terraform/` and maps `orm/schema.yaml` and `orm/provider_orm.tf` to root `schema.yaml` and `provider.tf` in the ZIP.
-- OCI DevOps build automation uses `devops/build_spec.yaml` from the current OCI DevOps repository branch.
-- The button must point to a real public `.zip` file. A GitHub directory such as `oracle-devrel/ai-solutions/tree/main/apps/oracle-mcp-oke` is not a valid `zipUrl`.
+- OCI DevOps build automation uses `build_spec.yaml` from the repository root by default.
+- The PAR must point to a real public `.zip` object and must be anonymously accessible.
+- Keep the same object key behind the PAR. The workflow updates that object on every publish, so the public button stays stable.
 - The DevOps build step builds the two container images only; user-specific env values still come from Terraform and are injected at deploy time into Kubernetes secrets and pod env vars.
 
 ### Local ZIP verification
@@ -131,7 +158,7 @@ If you want to test before publishing any button or public mirror:
 That creates a local uploadable stack ZIP at:
 
 ```text
-output/oci-deploy-selfhosted-mcp-oke-latest.zip
+output/oci-deploy-mcp-speech-demo-latest.zip
 ```
 
 Then in OCI Console:
@@ -139,7 +166,7 @@ Then in OCI Console:
 1. Open **Resource Manager**
 2. Choose **Create stack**
 3. Select **My configuration**
-4. Upload `output/oci-deploy-selfhosted-mcp-oke-latest.zip`
+4. Upload `output/oci-deploy-mcp-speech-demo-latest.zip`
 5. Provide the OCI DevOps repository OCID/URL and let the stack run the default end-to-end flow
 
 Based on your current environment, the initial values to use are:
@@ -196,7 +223,7 @@ speech_bucket_name                   = "team-audio-bucket"
 If you keep the defaults, Terraform uses `audio-repo`, `client-repo`, and `audio-bucket` as the base names, and still outputs the final names for the rest of the deployment flow to use.
 `home_region` is optional and acts as an override; when omitted, Terraform derives your tenancy home region automatically for IAM resources.
 The stack now expects the OCI DevOps repository inputs as part of the default end-to-end deployment path.
-For a direct stack from the OCI DevOps repo, use branch `master` and working directory `terraform`.
+For a direct stack from the OCI DevOps repo, use branch `one-click-deployment` (or your current fix branch) and working directory `terraform`.
 The workload identity policy is created automatically by Terraform for the generated service accounts.
 `genai_model_id` and `genai_provider` default to the repo's standard OCI Generative AI values if you do not override them.
 

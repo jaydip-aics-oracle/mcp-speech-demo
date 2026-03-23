@@ -13,7 +13,7 @@ jobs:
   package:
     runs-on: ubuntu-latest
     env:
-      ZIP_NAME: oci-deploy-selfhosted-mcp-oke-latest.zip
+      ZIP_NAME: oci-deploy-mcp-speech-demo-latest.zip
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -39,3 +39,60 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: dist/${{ env.ZIP_NAME }}
+
+      - name: Set up Python for OCI CLI
+        if: ${{ vars.OCI_ORM_STACK_BUCKET != '' && vars.OCI_ORM_STACK_NAMESPACE != '' && vars.OCI_ORM_STACK_REGION != '' }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install OCI CLI
+        if: ${{ vars.OCI_ORM_STACK_BUCKET != '' && vars.OCI_ORM_STACK_NAMESPACE != '' && vars.OCI_ORM_STACK_REGION != '' }}
+        run: python -m pip install --upgrade pip oci-cli
+
+      - name: Configure OCI CLI
+        if: ${{ vars.OCI_ORM_STACK_BUCKET != '' && vars.OCI_ORM_STACK_NAMESPACE != '' && vars.OCI_ORM_STACK_REGION != '' }}
+        env:
+          OCI_CLI_USER_OCID: ${{ secrets.OCI_CLI_USER_OCID }}
+          OCI_CLI_TENANCY_OCID: ${{ secrets.OCI_CLI_TENANCY_OCID }}
+          OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          OCI_CLI_PRIVATE_KEY: ${{ secrets.OCI_CLI_PRIVATE_KEY }}
+          OCI_CLI_PRIVATE_KEY_PASSPHRASE: ${{ secrets.OCI_CLI_PRIVATE_KEY_PASSPHRASE }}
+          OCI_ORM_STACK_REGION: ${{ vars.OCI_ORM_STACK_REGION }}
+        run: |
+          mkdir -p "${HOME}/.oci"
+          printf '%s\n' "${OCI_CLI_PRIVATE_KEY}" > "${HOME}/.oci/oci_api_key.pem"
+          chmod 600 "${HOME}/.oci/oci_api_key.pem"
+          {
+            printf '%s\n' '[DEFAULT]'
+            printf 'user=%s\n' "${OCI_CLI_USER_OCID}"
+            printf 'fingerprint=%s\n' "${OCI_CLI_FINGERPRINT}"
+            printf 'tenancy=%s\n' "${OCI_CLI_TENANCY_OCID}"
+            printf 'region=%s\n' "${OCI_ORM_STACK_REGION}"
+            printf 'key_file=%s\n' "${HOME}/.oci/oci_api_key.pem"
+            if [[ -n "${OCI_CLI_PRIVATE_KEY_PASSPHRASE:-}" ]]; then
+              printf 'pass_phrase=%s\n' "${OCI_CLI_PRIVATE_KEY_PASSPHRASE}"
+            fi
+          } > "${HOME}/.oci/config"
+
+      - name: Publish ZIP to Object Storage
+        if: ${{ vars.OCI_ORM_STACK_BUCKET != '' && vars.OCI_ORM_STACK_NAMESPACE != '' && vars.OCI_ORM_STACK_REGION != '' }}
+        env:
+          OCI_ORM_STACK_BUCKET: ${{ vars.OCI_ORM_STACK_BUCKET }}
+          OCI_ORM_STACK_NAMESPACE: ${{ vars.OCI_ORM_STACK_NAMESPACE }}
+          OCI_ORM_STACK_REGION: ${{ vars.OCI_ORM_STACK_REGION }}
+          OCI_ORM_STACK_OBJECT_NAME: ${{ vars.OCI_ORM_STACK_OBJECT_NAME }}
+          OCI_ORM_STACK_PAR_URL: ${{ vars.OCI_ORM_STACK_PAR_URL }}
+          OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING: "True"
+        run: ./scripts/publish_orm_stack_to_object_storage.sh "dist/${ZIP_NAME}"
+
+      - name: Upload deploy URL artifact
+        if: ${{ vars.OCI_ORM_STACK_BUCKET != '' && vars.OCI_ORM_STACK_NAMESPACE != '' && vars.OCI_ORM_STACK_REGION != '' && vars.OCI_ORM_STACK_PAR_URL != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-to-oracle-cloud-url
+          path: dist/deploy-to-oracle-cloud-url.txt
+
+      - name: Summarize publish outputs
+        if: ${{ vars.OCI_ORM_STACK_BUCKET != '' && vars.OCI_ORM_STACK_NAMESPACE != '' && vars.OCI_ORM_STACK_REGION != '' }}
+        run: cat dist/object-storage-publish-summary.txt >> "${GITHUB_STEP_SUMMARY}"

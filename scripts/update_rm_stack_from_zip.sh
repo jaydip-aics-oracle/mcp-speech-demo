@@ -11,7 +11,7 @@ Required environment variables:
 
 Optional environment variables:
   REGION                Stack region. Defaults to the region embedded in STACK_ID.
-  STACK_ZIP             ZIP file to upload. Defaults to output/oci-deploy-selfhosted-mcp-oke-latest.zip
+  STACK_ZIP             ZIP file to upload. Defaults to output/oci-deploy-mcp-speech-demo-latest.zip
   TF_VARS_JSON          JSON file of Terraform variables to apply to the stack during update
   MAX_APPLY_ATTEMPTS    Number of apply retries (default: 5)
   STACK_WAIT_SECONDS    Wait timeout for stack update (default: 1800)
@@ -58,7 +58,7 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
 fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DEFAULT_ZIP="${ROOT_DIR}/output/oci-deploy-selfhosted-mcp-oke-latest.zip"
+DEFAULT_ZIP="${ROOT_DIR}/output/oci-deploy-mcp-speech-demo-latest.zip"
 
 require_env "STACK_ID"
 

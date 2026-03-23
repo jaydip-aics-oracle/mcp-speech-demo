@@ -49,8 +49,8 @@ output "devops_deploy_pipeline_id" {
 }
 
 output "devops_initial_build_run_id" {
-  description = "OCID of the initial OCI DevOps build run (if enabled)."
-  value       = var.enable_devops_pipeline && var.devops_trigger_initial_build ? oci_devops_build_run.initial[0].id : null
+  description = "OCID of the OCI DevOps build run launched by the current stack apply."
+  value       = var.enable_devops_pipeline ? oci_devops_build_run.initial[0].id : null
 }
 
 output "devops_server_image_uri" {

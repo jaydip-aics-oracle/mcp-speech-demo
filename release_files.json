@@ -1,7 +1,7 @@
 [
   {
     "action": "create_zip",
-    "file_name": "oci-deploy-selfhosted-mcp-oke-latest.zip",
+    "file_name": "oci-deploy-mcp-speech-demo-latest.zip",
     "files": [
       {
         "src_pattern": "terraform/*.tf",
@@ -26,6 +26,6 @@
   },
   {
     "action": "upload_file",
-    "file_name": "oci-deploy-selfhosted-mcp-oke-latest.zip"
+    "file_name": "oci-deploy-mcp-speech-demo-latest.zip"
   }
 ]
