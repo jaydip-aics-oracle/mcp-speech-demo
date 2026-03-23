@@ -26,8 +26,24 @@ variableGroups:
   - title: "Deployment Mode"
     variables:
       - deployment_mode
+  - title: "Quick Deploy Images"
+    visible:
+      eq:
+        - ${deployment_mode}
+        - quick_deploy
+    variables:
       - prebuilt_server_image_uri
       - prebuilt_client_image_uri
+  - title: "Application Settings"
+    visible:
+      or:
+        - eq:
+            - ${deployment_mode}
+            - quick_deploy
+        - eq:
+            - ${deployment_mode}
+            - oci_devops
+    variables:
       - devops_deploy_namespace
       - devops_server_secret_json
       - devops_client_secret_json
@@ -37,6 +53,10 @@ variableGroups:
       - genai_model_max_tokens
       - genai_service_endpoint
   - title: "Advanced OCI DevOps Source Build"
+    visible:
+      eq:
+        - ${deployment_mode}
+        - oci_devops
     variables:
       - devops_repository_id
       - devops_repository_url
@@ -109,97 +129,197 @@ variables:
     type: string
     default: "ghcr.io/jaydip-aics-oracle/mcp-speech-demo-audio:latest"
     required: false
+    visible:
+      eq:
+        - ${deployment_mode}
+        - quick_deploy
   prebuilt_client_image_uri:
     title: "Public Client Image"
     description: "Client image used by quick_deploy mode. Ignored in infra_only mode."
     type: string
     default: "ghcr.io/jaydip-aics-oracle/mcp-speech-demo-client:latest"
     required: false
+    visible:
+      eq:
+        - ${deployment_mode}
+        - quick_deploy
   devops_repository_id:
     title: "OCI DevOps Repository OCID"
     description: "Only for oci_devops mode. OCI DevOps source repository that contains this branch and build spec."
     type: string
     required: false
+    visible:
+      eq:
+        - ${deployment_mode}
+        - oci_devops
   devops_repository_url:
     title: "OCI DevOps Repository URL"
     description: "Only for oci_devops mode. Clone URL for the OCI DevOps repository used by the managed build stage."
     type: string
     required: false
+    visible:
+      eq:
+        - ${deployment_mode}
+        - oci_devops
   devops_source_branch:
     title: "Source Branch"
     description: "Only for oci_devops mode. Repository branch built by OCI DevOps."
     type: string
     default: "one-click-deployment"
     required: false
+    visible:
+      eq:
+        - ${deployment_mode}
+        - oci_devops
   devops_build_spec_path:
     title: "Build Spec Path"
     description: "Only for oci_devops mode. Path from repository root to the OCI DevOps build spec file."
     type: string
     default: "build_spec.yaml"
     required: false
+    visible:
+      eq:
+        - ${deployment_mode}
+        - oci_devops
   devops_deploy_namespace:
     title: "Deploy Namespace"
     description: "Kubernetes namespace used for application deployment in quick_deploy and oci_devops modes."
     type: string
     default: "mcp"
     required: false
+    visible:
+      or:
+        - eq:
+            - ${deployment_mode}
+            - quick_deploy
+        - eq:
+            - ${deployment_mode}
+            - oci_devops
   devops_image_tag:
     title: "Image Tag"
     description: "Only for oci_devops mode. Container image tag delivered to OCIR and deployed to OKE."
     type: string
     default: "latest"
     required: false
+    visible:
+      eq:
+        - ${deployment_mode}
+        - oci_devops
   current_user_ocid:
     title: "Current User OCID"
     description: "Only for oci_devops mode. OCI user OCID used for OCIR token lookup/creation. Not needed for infra_only or quick_deploy."
     type: string
     required: false
+    visible:
+      eq:
+        - ${deployment_mode}
+        - oci_devops
   ocir_auth_token:
     title: "OCIR Auth Token"
     description: "Only for oci_devops mode. Fallback token for OCIR push/pull when the current user already has 2 auth tokens."
     type: string
     required: false
+    visible:
+      eq:
+        - ${deployment_mode}
+        - oci_devops
   devops_server_secret_json:
     title: "Server Secret JSON"
     description: "Optional JSON object of extra server env vars. Base server runtime envs are auto-populated by the stack. This field is mainly for tuning/overrides."
     type: string
     default: "{\"SPEECH_MODEL_TYPE\":\"WHISPER_LARGE_V3T\",\"SPEECH_LANGUAGE_CODE\":\"auto\",\"SPEECH_WHISPER_PROMPT\":\"This is a customer support conversation.\",\"SPEECH_DIARIZATION_ENABLED\":\"true\"}"
     required: false
+    visible:
+      or:
+        - eq:
+            - ${deployment_mode}
+            - quick_deploy
+        - eq:
+            - ${deployment_mode}
+            - oci_devops
   devops_client_secret_json:
     title: "Client Secret JSON"
     description: "Optional JSON object of extra client env vars. Base client runtime envs are auto-populated by the stack. This field is mainly for tuning/overrides."
     type: string
     default: "{\"AGENT_RECURSION_LIMIT\":\"40\",\"AGENT_MAX_CONCURRENCY\":\"8\",\"AGENT_TOOL_RUN_LIMIT\":\"36\"}"
     required: false
+    visible:
+      or:
+        - eq:
+            - ${deployment_mode}
+            - quick_deploy
+        - eq:
+            - ${deployment_mode}
+            - oci_devops
   genai_model_id:
     title: "GenAI Model ID"
     description: "Model ID used by the MCP client deployment."
     type: string
     default: "cohere.command-a-03-2025"
     required: false
+    visible:
+      or:
+        - eq:
+            - ${deployment_mode}
+            - quick_deploy
+        - eq:
+            - ${deployment_mode}
+            - oci_devops
   genai_provider:
     title: "GenAI Provider"
     description: "Provider string passed to the OCI Generative AI client."
     type: string
     default: "cohere"
     required: false
+    visible:
+      or:
+        - eq:
+            - ${deployment_mode}
+            - quick_deploy
+        - eq:
+            - ${deployment_mode}
+            - oci_devops
   genai_model_temperature:
     title: "GenAI Temperature"
     description: "Temperature passed to the OCI Generative AI model."
     type: number
     default: 0.0
     required: false
+    visible:
+      or:
+        - eq:
+            - ${deployment_mode}
+            - quick_deploy
+        - eq:
+            - ${deployment_mode}
+            - oci_devops
   genai_model_max_tokens:
     title: "GenAI Max Tokens"
     description: "Maximum output tokens requested from the OCI Generative AI model. Use 4096 or lower for the current default model."
     type: number
     default: 4096
     required: false
+    visible:
+      or:
+        - eq:
+            - ${deployment_mode}
+            - quick_deploy
+        - eq:
+            - ${deployment_mode}
+            - oci_devops
   genai_service_endpoint:
     title: "GenAI Service Endpoint"
     description: "Optional regional inference endpoint override."
     type: string
     required: false
+    visible:
+      or:
+        - eq:
+            - ${deployment_mode}
+            - quick_deploy
+        - eq:
+            - ${deployment_mode}
+            - oci_devops
   control_subnet_cidr_block:
     title: "Control Subnet CIDR"
     type: string
