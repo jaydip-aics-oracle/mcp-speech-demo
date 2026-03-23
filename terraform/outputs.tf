@@ -1,12 +1,12 @@
 #outputs.tf
 output "mcp_server_repository_path" {
   description = "The full URL for pushing images to the OCIR repository."
-  value       = "${lower(data.oci_identity_regions.current.regions[0].key)}.ocir.io/${data.oci_objectstorage_namespace.this.namespace}/${local.effective_mcp_container_repository_name}"
+  value       = local.use_devops_build_pipeline ? "${lower(data.oci_identity_regions.current.regions[0].key)}.ocir.io/${data.oci_objectstorage_namespace.this.namespace}/${local.effective_mcp_container_repository_name}" : null
 }
 
 output "mcp_client_repository_path" {
   description = "The full URL for pushing MCP client images to the OCIR repository."
-  value       = "${lower(data.oci_identity_regions.current.regions[0].key)}.ocir.io/${data.oci_objectstorage_namespace.this.namespace}/${local.effective_mcp_client_container_repository_name}"
+  value       = local.use_devops_build_pipeline ? "${lower(data.oci_identity_regions.current.regions[0].key)}.ocir.io/${data.oci_objectstorage_namespace.this.namespace}/${local.effective_mcp_client_container_repository_name}" : null
 }
 
 output "cluster_id" {
@@ -34,33 +34,43 @@ output "resource_name_prefix" {
 }
 
 output "devops_project_id" {
-  description = "OCI DevOps project OCID created for one-click build/deploy."
-  value       = var.enable_devops_pipeline ? oci_devops_project.mcp[0].id : null
+  description = "OCI DevOps project OCID created for quick deploy or advanced build/deploy."
+  value       = local.use_app_deploy ? oci_devops_project.mcp[0].id : null
 }
 
 output "devops_build_pipeline_id" {
   description = "OCI DevOps build pipeline OCID."
-  value       = var.enable_devops_pipeline ? oci_devops_build_pipeline.mcp[0].id : null
+  value       = local.use_devops_build_pipeline ? oci_devops_build_pipeline.mcp[0].id : null
 }
 
 output "devops_deploy_pipeline_id" {
   description = "OCI DevOps deployment pipeline OCID."
-  value       = var.enable_devops_pipeline ? oci_devops_deploy_pipeline.mcp[0].id : null
+  value       = local.use_app_deploy ? oci_devops_deploy_pipeline.mcp[0].id : null
 }
 
 output "devops_initial_build_run_id" {
   description = "OCID of the OCI DevOps build run launched by the current stack apply."
-  value       = var.enable_devops_pipeline ? oci_devops_build_run.initial[0].id : null
+  value       = local.use_devops_build_pipeline ? oci_devops_build_run.initial[0].id : null
+}
+
+output "devops_initial_deployment_id" {
+  description = "OCID of the OCI DevOps deployment launched by the current stack apply in quick_deploy mode."
+  value       = local.use_quick_deploy_mode ? oci_devops_deployment.initial[0].id : null
 }
 
 output "devops_server_image_uri" {
-  description = "OCI DevOps target server image URI."
-  value       = var.enable_devops_pipeline ? local.devops_server_image_uri : null
+  description = "Server image URI used by the current stack apply."
+  value       = local.use_app_deploy ? local.effective_server_image_uri : null
 }
 
 output "devops_client_image_uri" {
-  description = "OCI DevOps target client image URI."
-  value       = var.enable_devops_pipeline ? local.devops_client_image_uri : null
+  description = "Client image URI used by the current stack apply."
+  value       = local.use_app_deploy ? local.effective_client_image_uri : null
+}
+
+output "deployment_mode" {
+  description = "Effective application deployment mode."
+  value       = local.use_infra_only_mode ? "infra_only" : (local.use_devops_build_pipeline ? "oci_devops" : "quick_deploy")
 }
 
 output "client_service_name" {

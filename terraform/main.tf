@@ -24,7 +24,7 @@ module "oke_virtual_nodes" {
 }
 
 resource "oci_identity_policy" "mcp_workload_policy" {
-  count    = length(data.oci_identity_policies.workload_policy_lookup.policies) == 0 ? 1 : 0
+  count    = local.use_app_deploy && length(data.oci_identity_policies.workload_policy_lookup.policies) == 0 ? 1 : 0
   provider = oci.home
   # Attach the policy to the target compartment so compartment admins can manage it
   # without requiring root-compartment policy write access.
@@ -55,7 +55,7 @@ EOT
 }
 
 module "container_repository" {
-  count                     = 1
+  count                     = local.use_devops_build_pipeline ? 1 : 0
   source                    = "./modules/container_repository"
   tenancy_ocid              = var.tenancy_ocid
   compartment_id            = var.compartment_id
@@ -64,7 +64,7 @@ module "container_repository" {
 }
 
 module "client_container_repository" {
-  count                     = 1
+  count                     = local.use_devops_build_pipeline ? 1 : 0
   source                    = "./modules/container_repository"
   tenancy_ocid              = var.tenancy_ocid
   compartment_id            = var.compartment_id

@@ -1,6 +1,6 @@
 check "devops_pipeline_inputs" {
   assert {
-    condition = !var.enable_devops_pipeline || (
+    condition = !local.use_devops_build_pipeline || (
       (var.devops_repository_id == null ? "" : trimspace(var.devops_repository_id)) != "" &&
       (var.devops_repository_url == null ? "" : trimspace(var.devops_repository_url)) != "" &&
       (var.genai_model_id == null ? "" : trimspace(var.genai_model_id)) != "" &&
@@ -12,7 +12,7 @@ check "devops_pipeline_inputs" {
 
 check "ocir_pull_token_inputs" {
   assert {
-    condition = !var.enable_devops_pipeline || (
+    condition = !local.use_devops_build_pipeline || (
       (var.current_user_ocid == null ? "" : trimspace(var.current_user_ocid)) != "" &&
       (local.use_provided_ocir_auth_token || local.current_user_token_count < 2)
     )
@@ -20,7 +20,23 @@ check "ocir_pull_token_inputs" {
   }
 }
 
+check "quick_deploy_image_inputs" {
+  assert {
+    condition = !local.use_quick_deploy_mode || (
+      local.prebuilt_server_image_uri_normalized != "" &&
+      local.prebuilt_client_image_uri_normalized != ""
+    )
+    error_message = "Set prebuilt_server_image_uri and prebuilt_client_image_uri for quick_deploy mode."
+  }
+}
+
 locals {
+  deployment_mode_normalized          = lower(trimspace(var.deployment_mode))
+  use_infra_only_mode                 = local.deployment_mode_normalized == "infra_only"
+  use_devops_build_pipeline           = !local.use_infra_only_mode && (local.deployment_mode_normalized == "oci_devops" || var.enable_devops_pipeline)
+  use_quick_deploy_mode               = !local.use_infra_only_mode && !local.use_devops_build_pipeline
+  use_app_deploy                      = local.use_quick_deploy_mode || local.use_devops_build_pipeline
+  use_devops_deploy_pipeline          = local.use_app_deploy
   devops_repository_id_normalized      = var.devops_repository_id == null ? "" : trimspace(var.devops_repository_id)
   devops_repository_url_normalized     = var.devops_repository_url == null ? "" : trimspace(var.devops_repository_url)
   devops_project_name_normalized       = var.devops_project_name == null ? "" : trimspace(var.devops_project_name)
@@ -30,28 +46,32 @@ locals {
   genai_model_id_normalized            = var.genai_model_id == null ? "" : trimspace(var.genai_model_id)
   genai_provider_normalized            = var.genai_provider == null ? "" : trimspace(var.genai_provider)
   genai_service_endpoint_normalized    = var.genai_service_endpoint == null ? "" : trimspace(var.genai_service_endpoint)
+  prebuilt_server_image_uri_normalized = trimspace(var.prebuilt_server_image_uri)
+  prebuilt_client_image_uri_normalized = trimspace(var.prebuilt_client_image_uri)
 
   devops_project_name_effective    = local.devops_project_name_normalized != "" ? local.devops_project_name_normalized : local.devops_project_name_default
   devops_server_image_uri          = "${lower(data.oci_identity_regions.current.regions[0].key)}.ocir.io/${data.oci_objectstorage_namespace.this.namespace}/${local.effective_mcp_container_repository_name}:${var.devops_image_tag}"
   devops_client_image_uri          = "${lower(data.oci_identity_regions.current.regions[0].key)}.ocir.io/${data.oci_objectstorage_namespace.this.namespace}/${local.effective_mcp_client_container_repository_name}:${var.devops_image_tag}"
+  effective_server_image_uri       = local.use_devops_build_pipeline ? local.devops_server_image_uri : (local.use_quick_deploy_mode ? local.prebuilt_server_image_uri_normalized : "")
+  effective_client_image_uri       = local.use_devops_build_pipeline ? local.devops_client_image_uri : (local.use_quick_deploy_mode ? local.prebuilt_client_image_uri_normalized : "")
   effective_genai_service_endpoint = local.genai_service_endpoint_normalized != "" ? local.genai_service_endpoint_normalized : "https://inference.generativeai.${var.region}.oci.oraclecloud.com"
   use_provided_ocir_auth_token     = local.ocir_auth_token_normalized != ""
-  current_user_token_count         = var.enable_devops_pipeline ? try(length(data.oci_identity_auth_tokens.current_user_tokens[0].tokens), 0) : 0
-  create_ocir_auth_token           = var.enable_devops_pipeline && !local.use_provided_ocir_auth_token && local.current_user_token_count < 2
-  ocir_username                    = var.enable_devops_pipeline ? "${data.oci_objectstorage_namespace.this.namespace}/${data.oci_identity_user.current_user[0].name}" : ""
+  current_user_token_count         = local.use_devops_build_pipeline ? try(length(data.oci_identity_auth_tokens.current_user_tokens[0].tokens), 0) : 0
+  create_ocir_auth_token           = local.use_devops_build_pipeline && !local.use_provided_ocir_auth_token && local.current_user_token_count < 2
+  ocir_username                    = local.use_devops_build_pipeline ? "${data.oci_objectstorage_namespace.this.namespace}/${data.oci_identity_user.current_user[0].name}" : ""
   ocir_password                    = local.use_provided_ocir_auth_token ? local.ocir_auth_token_normalized : (local.create_ocir_auth_token ? oci_identity_auth_token.ocir_pull[0].token : "")
-  use_ocir_pull_secret             = var.enable_devops_pipeline && (local.use_provided_ocir_auth_token || local.create_ocir_auth_token)
+  use_ocir_pull_secret             = local.use_devops_build_pipeline && (local.use_provided_ocir_auth_token || local.create_ocir_auth_token)
   devops_logging_log_group_name    = "${local.resource_name_prefix}-devops-logs-${local.generated_name_suffix}"
   devops_logging_log_name          = "${local.resource_name_prefix}-devops-log-${local.generated_name_suffix}"
 }
 
 data "oci_identity_user" "current_user" {
-  count   = var.enable_devops_pipeline ? 1 : 0
+  count   = local.use_devops_build_pipeline ? 1 : 0
   user_id = local.current_user_ocid_normalized
 }
 
 data "oci_identity_auth_tokens" "current_user_tokens" {
-  count   = var.enable_devops_pipeline ? 1 : 0
+  count   = local.use_devops_build_pipeline ? 1 : 0
   user_id = local.current_user_ocid_normalized
 }
 
@@ -225,7 +245,7 @@ spec:
 ${local.image_pull_secrets_yaml}
       containers:
         - name: fastmcp-server
-          image: ${local.devops_server_image_uri}
+          image: ${local.effective_server_image_uri}
           imagePullPolicy: Always
           envFrom:
             - secretRef:
@@ -283,7 +303,7 @@ spec:
 ${local.image_pull_secrets_yaml}
       containers:
         - name: fastmcp-client
-          image: ${local.devops_client_image_uri}
+          image: ${local.effective_client_image_uri}
           imagePullPolicy: Always
           envFrom:
             - secretRef:
@@ -325,7 +345,7 @@ YAML
 }
 
 resource "oci_identity_policy" "devops_build_runtime_policy" {
-  count    = var.enable_devops_pipeline ? 1 : 0
+  count    = local.use_devops_build_pipeline ? 1 : 0
   provider = oci.home
 
   compartment_id = var.compartment_id
@@ -344,7 +364,7 @@ resource "oci_identity_policy" "devops_build_runtime_policy" {
 }
 
 resource "oci_identity_policy" "devops_deploy_runtime_policy" {
-  count    = var.enable_devops_pipeline ? 1 : 0
+  count    = local.use_devops_deploy_pipeline ? 1 : 0
   provider = oci.home
 
   compartment_id = var.compartment_id
@@ -358,7 +378,7 @@ resource "oci_identity_policy" "devops_deploy_runtime_policy" {
 }
 
 resource "oci_devops_project" "mcp" {
-  count = var.enable_devops_pipeline ? 1 : 0
+  count = local.use_devops_deploy_pipeline ? 1 : 0
 
   compartment_id = var.compartment_id
   name           = local.devops_project_name_effective
@@ -370,7 +390,7 @@ resource "oci_devops_project" "mcp" {
 }
 
 resource "oci_ons_notification_topic" "devops" {
-  count = var.enable_devops_pipeline && local.devops_notification_topic_normalized == "" ? 1 : 0
+  count = local.use_devops_deploy_pipeline && local.devops_notification_topic_normalized == "" ? 1 : 0
 
   compartment_id = var.compartment_id
   name           = "${local.resource_name_prefix}-devops-topic-${local.generated_name_suffix}"
@@ -378,14 +398,14 @@ resource "oci_ons_notification_topic" "devops" {
 }
 
 resource "oci_logging_log_group" "devops" {
-  count          = var.enable_devops_pipeline ? 1 : 0
+  count          = local.use_devops_deploy_pipeline ? 1 : 0
   compartment_id = var.compartment_id
   display_name   = local.devops_logging_log_group_name
   description    = "Log group for MCP OCI DevOps project logs"
 }
 
 resource "oci_logging_log" "devops" {
-  count        = var.enable_devops_pipeline ? 1 : 0
+  count        = local.use_devops_deploy_pipeline ? 1 : 0
   display_name = local.devops_logging_log_name
   log_group_id = oci_logging_log_group.devops[0].id
   log_type     = "SERVICE"
@@ -403,7 +423,7 @@ resource "oci_logging_log" "devops" {
 }
 
 resource "oci_devops_deploy_environment" "oke" {
-  count = var.enable_devops_pipeline ? 1 : 0
+  count = local.use_devops_deploy_pipeline ? 1 : 0
 
   project_id              = oci_devops_project.mcp[0].id
   deploy_environment_type = "OKE_CLUSTER"
@@ -413,7 +433,7 @@ resource "oci_devops_deploy_environment" "oke" {
 }
 
 resource "oci_devops_deploy_artifact" "server_image" {
-  count = var.enable_devops_pipeline ? 1 : 0
+  count = local.use_devops_build_pipeline ? 1 : 0
 
   project_id                 = oci_devops_project.mcp[0].id
   display_name               = "${local.resource_name_prefix}-server-image-${local.generated_name_suffix}"
@@ -428,7 +448,7 @@ resource "oci_devops_deploy_artifact" "server_image" {
 }
 
 resource "oci_devops_deploy_artifact" "client_image" {
-  count = var.enable_devops_pipeline ? 1 : 0
+  count = local.use_devops_build_pipeline ? 1 : 0
 
   project_id                 = oci_devops_project.mcp[0].id
   display_name               = "${local.resource_name_prefix}-client-image-${local.generated_name_suffix}"
@@ -443,7 +463,7 @@ resource "oci_devops_deploy_artifact" "client_image" {
 }
 
 resource "oci_devops_deploy_artifact" "k8s_manifest" {
-  count = var.enable_devops_pipeline ? 1 : 0
+  count = local.use_devops_deploy_pipeline ? 1 : 0
 
   project_id                 = oci_devops_project.mcp[0].id
   display_name               = "${local.resource_name_prefix}-k8s-manifest-${local.generated_name_suffix}"
@@ -458,7 +478,7 @@ resource "oci_devops_deploy_artifact" "k8s_manifest" {
 }
 
 resource "oci_devops_deploy_artifact" "k8s_namespace_manifest" {
-  count = var.enable_devops_pipeline ? 1 : 0
+  count = local.use_devops_deploy_pipeline ? 1 : 0
 
   project_id                 = oci_devops_project.mcp[0].id
   display_name               = "${local.resource_name_prefix}-k8s-namespace-${local.generated_name_suffix}"
@@ -473,7 +493,7 @@ resource "oci_devops_deploy_artifact" "k8s_namespace_manifest" {
 }
 
 resource "oci_devops_deploy_pipeline" "mcp" {
-  count = var.enable_devops_pipeline ? 1 : 0
+  count = local.use_devops_deploy_pipeline ? 1 : 0
 
   project_id   = oci_devops_project.mcp[0].id
   display_name = var.devops_deploy_pipeline_name
@@ -481,7 +501,7 @@ resource "oci_devops_deploy_pipeline" "mcp" {
 }
 
 resource "oci_devops_deploy_stage" "oke_namespace" {
-  count = var.enable_devops_pipeline ? 1 : 0
+  count = local.use_devops_deploy_pipeline ? 1 : 0
 
   deploy_pipeline_id                      = oci_devops_deploy_pipeline.mcp[0].id
   deploy_stage_type                       = "OKE_DEPLOYMENT"
@@ -499,7 +519,7 @@ resource "oci_devops_deploy_stage" "oke_namespace" {
 }
 
 resource "oci_devops_deploy_stage" "oke_deploy" {
-  count = var.enable_devops_pipeline ? 1 : 0
+  count = local.use_devops_deploy_pipeline ? 1 : 0
 
   deploy_pipeline_id                      = oci_devops_deploy_pipeline.mcp[0].id
   deploy_stage_type                       = "OKE_DEPLOYMENT"
@@ -517,7 +537,7 @@ resource "oci_devops_deploy_stage" "oke_deploy" {
 }
 
 resource "oci_devops_build_pipeline" "mcp" {
-  count = var.enable_devops_pipeline ? 1 : 0
+  count = local.use_devops_build_pipeline ? 1 : 0
 
   project_id   = oci_devops_project.mcp[0].id
   display_name = var.devops_build_pipeline_name
@@ -525,7 +545,7 @@ resource "oci_devops_build_pipeline" "mcp" {
 }
 
 resource "oci_devops_build_pipeline_stage" "build_images" {
-  count = var.enable_devops_pipeline ? 1 : 0
+  count = local.use_devops_build_pipeline ? 1 : 0
 
   build_pipeline_id                  = oci_devops_build_pipeline.mcp[0].id
   build_pipeline_stage_type          = "BUILD"
@@ -554,7 +574,7 @@ resource "oci_devops_build_pipeline_stage" "build_images" {
 }
 
 resource "oci_devops_build_pipeline_stage" "deliver_images" {
-  count = var.enable_devops_pipeline ? 1 : 0
+  count = local.use_devops_build_pipeline ? 1 : 0
 
   build_pipeline_id         = oci_devops_build_pipeline.mcp[0].id
   build_pipeline_stage_type = "DELIVER_ARTIFACT"
@@ -580,7 +600,7 @@ resource "oci_devops_build_pipeline_stage" "deliver_images" {
 }
 
 resource "oci_devops_build_pipeline_stage" "trigger_deploy" {
-  count = var.enable_devops_pipeline ? 1 : 0
+  count = local.use_devops_build_pipeline ? 1 : 0
 
   build_pipeline_id              = oci_devops_build_pipeline.mcp[0].id
   build_pipeline_stage_type      = "TRIGGER_DEPLOYMENT_PIPELINE"
@@ -597,13 +617,13 @@ resource "oci_devops_build_pipeline_stage" "trigger_deploy" {
 }
 
 resource "terraform_data" "initial_build_run_nonce" {
-  count = var.enable_devops_pipeline ? 1 : 0
+  count = local.use_devops_build_pipeline ? 1 : 0
 
   input = plantimestamp()
 }
 
 resource "oci_devops_build_run" "initial" {
-  count = var.enable_devops_pipeline ? 1 : 0
+  count = local.use_devops_build_pipeline ? 1 : 0
 
   build_pipeline_id = oci_devops_build_pipeline.mcp[0].id
   display_name      = "initial-mcp-build-run"
@@ -621,5 +641,33 @@ resource "oci_devops_build_run" "initial" {
     oci_devops_deploy_stage.oke_namespace,
     oci_devops_deploy_stage.oke_deploy,
     oci_devops_build_pipeline_stage.trigger_deploy,
+  ]
+}
+
+resource "terraform_data" "initial_deployment_nonce" {
+  count = local.use_quick_deploy_mode ? 1 : 0
+
+  input = plantimestamp()
+}
+
+resource "oci_devops_deployment" "initial" {
+  count = local.use_quick_deploy_mode ? 1 : 0
+
+  deploy_pipeline_id            = oci_devops_deploy_pipeline.mcp[0].id
+  deployment_type               = "PIPELINE_DEPLOYMENT"
+  display_name                  = "initial-mcp-quick-deployment"
+  trigger_new_devops_deployment = true
+
+  lifecycle {
+    replace_triggered_by = [terraform_data.initial_deployment_nonce[0]]
+  }
+
+  depends_on = [
+    oci_logging_log.devops,
+    oci_identity_policy.devops_deploy_runtime_policy,
+    module.oke_virtual_nodes,
+    oci_devops_deploy_environment.oke,
+    oci_devops_deploy_stage.oke_namespace,
+    oci_devops_deploy_stage.oke_deploy,
   ]
 }
